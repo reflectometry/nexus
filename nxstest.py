@@ -6,7 +6,7 @@
 NeXus tests converted to python.
 """
 
-import nxs,os,numpy,sys
+import nexus,os,numpy,sys
 
 def memfootprint():
     import gc
@@ -23,7 +23,7 @@ def leak_test1(n = 1000, mode='w5'):
     filename = "leak_test1.nxs"
     try: os.unlink(filename)
     except OSError: pass
-    file = nxs.open(filename,mode)
+    file = nexus.open(filename,mode)
     file.close()
     print "File should exist now"
     for i in range(n):
@@ -62,7 +62,7 @@ def _show(file, indent=0):
             _show(file, indent+2)
 
 def show_structure(filename):
-    file = nxs.open(filename)
+    file = nexus.open(filename)
     print "=== File",file.inquirefile()
     _show(file)
     
@@ -77,7 +77,7 @@ def populate(filename,mode):
     comp_array=numpy.ones((100,20),dtype='int32')
     for i in range(100): comp_array[i,:] *= i
 
-    file = nxs.open(filename,mode)
+    file = nexus.open(filename,mode)
     file.setnumberformat('float32','%9.3g')
     file.makegroup("entry","NXentry")
     file.opengroup("entry","NXentry")
@@ -129,7 +129,7 @@ def populate(filename,mode):
     file.flush()
 
     # .. demonstrate extensible data
-    file.makedata('flush_data','int32',[nxs.UNLIMITED])
+    file.makedata('flush_data','int32',[nexus.UNLIMITED])
     for i in range(7):
         file.opendata('flush_data')
         file.putslab(i,[i],[1])
@@ -185,7 +185,7 @@ def dicteq(a,b):
 def check(filename):
     global failures
     failures = 0
-    file = nxs.open(filename,'rw')
+    file = nexus.open(filename,'rw')
     if filename != file.inquirefile(): fail("Files don't match")
     attrs = file.getattrinfo()
     if attrs != 4: fail("Expected 4 root attributes but got %d", attrs)
@@ -293,7 +293,7 @@ def check(filename):
 
 def populate_external(filename,mode):
     ext = dict(w5='.h5',w4='.hdf',wx='.xml')[mode]
-    file = nxs.open(filename,mode)
+    file = nexus.open(filename,mode)
     file.makegroup('entry1','NXentry')
     file.linkexternal('entry1','NXentry','nxfile://data/dmc01'+ext)
     file.makegroup('entry2','NXentry')
@@ -303,7 +303,7 @@ def populate_external(filename,mode):
 
 def check_external(filename,mode):
     ext = dict(w5='.h5',w4='.hdf',wx='.xml')[mode]
-    file = nxs.open(filename,'rw')
+    file = nexus.open(filename,'rw')
     
     file.openpath('/entry1/start_time')
     time = file.getdata()

@@ -4,19 +4,19 @@
 """
 Tree view for NeXus files.
 
-The `nxs.tree` routines provide a natural interface to NeXus datasets.
+The `nexus.tree` routines provide a natural interface to NeXus datasets.
 Entries in a group are referenced much like fields in a class are
 referenced in python.  Rather than following the directory model of
-the `nxs.napi` interface, users are free to reference separate fields
+the `nexus.napi` interface, users are free to reference separate fields
 in the dataset at the same time.  Large datasets are not read until 
 they are needed, and may be read or written one slab at a time.
 
 There are a number of functions which operate on files::
 
-    import nxs
-    tree = nxs.load('file.nxs')   # loads a structure from a file
-    nxs.save('copy.nxs', tree)    # saves a structure to a file
-    nxs.dir('copy.nxs')           # display the contents of a file
+    import nexus
+    tree = nexus.load('file.nxs')   # loads a structure from a file
+    nexus.save('copy.nxs', tree)    # saves a structure to a file
+    nexus.dir('copy.nxs')           # display the contents of a file
 
 
 The tree returned from load() has an entry for each group, field and
@@ -71,7 +71,7 @@ to retrieve data from the file in particular units.  For example, if
 detector distance is stored in the file using millimeters you can 
 retrieve them in meters using::
     entry.instrument.detector.distance.nxdata_as('m')
-See `nxs.unit` for more details on the unit formats supported.
+See `nexus.unit` for more details on the unit formats supported.
 
 The slab interface to field data works by opening the file handle
 and keeping it open as long as the slab interface is needed.  This
@@ -113,7 +113,7 @@ listing the signal sample points, entry is file/path within the file
 to the data group and title is the title of the NXentry, if available.
 
 The load() and save() functions are implemented using the class
-`nxs.tree.NeXusTree`, a subclass of `nxs.napi.NeXus` which allows 
+`nexus.tree.NeXusTree`, a subclass of `nexus.napi.NeXus` which allows 
 all the usual API functions.  You can subclass NeXusTree with your
 own version that defines, e.g., a NXmonitor() method to return an
 NXmonitor object when an NXmonitor class is read.  Your NXmonitor
@@ -123,12 +123,12 @@ __all__ = ['load', 'save', 'dir', 'NeXusTree']
 
 from copy import copy, deepcopy
 import numpy
-import nxs.napi
-import nxs.unit
-from nxs.napi import NeXusError
+import nexus.napi
+import nexus.unit
+from nexus.napi import NeXusError
 
 
-class NeXusTree(nxs.napi.NeXus):
+class NeXusTree(nexus.napi.NeXus):
     """
     Structure-based interface to the NeXus file API.
 
@@ -560,7 +560,7 @@ class SDS(NXnode):
             units = attrs['units'].nxdata
         else:
             units = None
-        self._converter = nxs.unit.Converter(units)
+        self._converter = nexus.unit.Converter(units)
         self._incontext = False
 
     def __enter__(self):
