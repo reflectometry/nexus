@@ -498,7 +498,7 @@ class NeXus(object):
                     self.opendata(name)
                 break
             else:
-                raise ValueError(target+' not in '+self.path)
+                raise ValueError("node %s not in %s"%(name,self.path))
 
     nxlib.nxiopengrouppath_.restype = c_int
     nxlib.nxiopengrouppath_.argtypes = [c_void_p, c_char_p]
@@ -1209,7 +1209,7 @@ class NeXus(object):
 
         This is an extension to the NeXus API.
         """
-        return "%s(/%s)"%(self.filename,'/'.join(self.node))
+        return "%s(%s)"%(self.filename,self.path)
 
     def _poutput(self, dtype, shape):
         """

@@ -6,7 +6,7 @@
 NeXus tests converted to python.
 """
 
-import nexus,os,numpy,sys
+import nxs,os,numpy,sys
 
 def memfootprint():
     import gc
@@ -23,7 +23,7 @@ def leak_test1(n = 1000, mode='w5'):
     filename = "leak_test1.nxs"
     try: os.unlink(filename)
     except OSError: pass
-    file = nexus.open(filename,mode)
+    file = nxs.open(filename,mode)
     file.close()
     print "File should exist now"
     for i in range(n):
@@ -44,6 +44,7 @@ def _show(file, indent=0):
     for attr,value in file.attrs():
         print "%(prefix)s@%(attr)s: %(value)s" % locals()
     for name,nxclass in file.entries():
+        if nxclass.startswith("CDF"): continue # Root has an extra CDF class
         if nxclass == "SDS":
             shape,dtype = file.getinfo()
             dims = "x".join([str(x) for x in shape])
@@ -62,7 +63,7 @@ def _show(file, indent=0):
             _show(file, indent+2)
 
 def show_structure(filename):
-    file = nexus.open(filename)
+    file = nxs.open(filename)
     print "=== File",file.inquirefile()
     _show(file)
     
@@ -77,7 +78,7 @@ def populate(filename,mode):
     comp_array=numpy.ones((100,20),dtype='int32')
     for i in range(100): comp_array[i,:] *= i
 
-    file = nexus.open(filename,mode)
+    file = nxs.open(filename,mode)
     file.setnumberformat('float32','%9.3g')
     file.makegroup("entry","NXentry")
     file.opengroup("entry","NXentry")
@@ -93,6 +94,7 @@ def populate(filename,mode):
     
     # Write numeric data
     for var in ['i1','i2','i4','i8','r4']:
+        if mode == 'w4' and var == 'i8': continue
         name = var+'_data'
         val = locals()[var]
         file.makedata(name,val.dtype,val.shape)
@@ -129,7 +131,7 @@ def populate(filename,mode):
     file.flush()
 
     # .. demonstrate extensible data
-    file.makedata('flush_data','int32',[nexus.UNLIMITED])
+    file.makedata('flush_data','int32',[nxs.UNLIMITED])
     for i in range(7):
         file.opendata('flush_data')
         file.putslab(i,[i],[1])
@@ -182,18 +184,26 @@ def dicteq(a,b):
             return False
     return True
 
-def check(filename):
+def check(filename, mode):
     global failures
     failures = 0
-    file = nexus.open(filename,'rw')
+    file = nxs.open(filename,'rw')
     if filename != file.inquirefile(): fail("Files don't match")
-    attrs = file.getattrinfo()
-    if attrs != 4: fail("Expected 4 root attributes but got %d", attrs)
-    for i in range(attrs):
+
+    # check headers
+    num_attrs = file.getattrinfo()
+    wxattrs = ['xmlns','xmlns:xsi','xsi:schemaLocation', 'XML_version']
+    w4attrs = ['HDF_version']
+    w5attrs = ['HDF5_Version']
+    extras = dict(wx=wxattrs,w4=w4attrs,w5=w5attrs)
+    expected_attrs = ['NeXus_version','file_name','file_time']+extras[mode]
+    for i in range(num_attrs):
         name,dims,type = file.getnextattr()
-        if name not in ['file_time','HDF_version','HDF5_Version','XML_version',
-                        'NeXus_version','file_name']:
+        if name not in expected_attrs:
             fail("attribute %s unexpected"%(name))
+    if num_attrs != len(expected_attrs): 
+        fail("Expected %d root attributes but got %d"
+             % (len(expected_attrs),num_attrs))
     
     file.opengroup('entry','NXentry')
     
@@ -212,6 +222,7 @@ def check(filename):
          ('r4','float32',(5,4),1),
          ('r8','float64',(5,4),1)
          ]:
+        if mode == 'w4' and name == 'i8': continue
         n = numpy.prod(shape)
         expected = numpy.arange(n,dtype=dtype).reshape(shape)*scale
         file.opendata(name+'_data')
@@ -227,7 +238,9 @@ def check(filename):
     get = file.getattr("i4_attribute",1,'int32')
     if not get == numpy.int32(42): fail("i4_attribute retrieved %s"%(get))
     get = file.getattr("r4_attribute",1,'float32')
-    if not get == numpy.float32(3.14159265): fail("r4_attribute retrieved %s"%(get))
+    if ((mode=='wx' and not abs(get-3.14159265) < 1e-6) or
+        (mode!='wx' and not get == numpy.float32(3.14159265))):
+        fail("r4_attribute retrieved %s"%(get))
     ## Oops... NAPI doesn't support array attributes
     #expect = numpy.array([3,2],dtype='int32')
     #get = file.getattr("i4_array",2,'int32')
@@ -293,7 +306,7 @@ def check(filename):
 
 def populate_external(filename,mode):
     ext = dict(w5='.h5',w4='.hdf',wx='.xml')[mode]
-    file = nexus.open(filename,mode)
+    file = nxs.open(filename,mode)
     file.makegroup('entry1','NXentry')
     file.linkexternal('entry1','NXentry','nxfile://data/dmc01'+ext)
     file.makegroup('entry2','NXentry')
@@ -303,7 +316,7 @@ def populate_external(filename,mode):
 
 def check_external(filename,mode):
     ext = dict(w5='.h5',w4='.hdf',wx='.xml')[mode]
-    file = nexus.open(filename,'rw')
+    file = nxs.open(filename,'rw')
     
     file.openpath('/entry1/start_time')
     time = file.getdata()
@@ -346,7 +359,7 @@ def test_mode(mode,quiet=True,external=False):
         show_structure('dmc01'+ext)
     if not quiet:
         show_structure(filename)
-    failures = check(filename)
+    failures = check(filename,mode)
     if external: failures += test_external(mode,quiet)
     return failures
 
