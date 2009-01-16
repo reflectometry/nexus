@@ -1,0 +1,20 @@
+The sample data file, lrcs7301 is an HDF5 file with two histograms.
+
+You can check that the tree interface to NeXus files is working
+properly for HDF5 using:
+
+   python -m nexus.tree copy lrcs7301.nxs copy.nxs
+   python -m nexus.tree plot copy.nxs Histogram1.data
+
+This load the structure from one file, saves it to another file and
+produces a plot.  If that is successful, then basic read/write are
+functional.
+
+You can explore the data from ipython:
+
+   $ipython -pylab
+   >>> import nexus
+   >>> f = nexus.load('lrcs7301.nxs')
+   >>> f.Histogram1.data.nxplot()
+
+Tab-completion on the group names shows the names of the entries.
