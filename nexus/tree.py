@@ -864,7 +864,7 @@ def dir(file):
     """
     Read and summarize the named nexus file.
     """
-    tree = readfile(file)
+    tree = load(file)
     tree.nxtree()
 
 def demo(argv):

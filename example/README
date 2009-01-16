@@ -3,6 +3,7 @@ The sample data file, lrcs7301 is an HDF5 file with two histograms.
 You can check that the tree interface to NeXus files is working
 properly for HDF5 using:
 
+   python -m nexus.tree ls lrcs7301.nxs
    python -m nexus.tree copy lrcs7301.nxs copy.nxs
    python -m nexus.tree plot copy.nxs Histogram1.data
 
