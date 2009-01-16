@@ -222,17 +222,16 @@ class NeXusTree(nexus.napi.NeXus):
             #print "read attr",name,pair.nxdata, pair.nxtype
         return attrs
 
-    def _readdata(self,name,path):
+    def _readdata(self,name):
         """
         Read a data node, returning SDS or NXlink depending on the
         nature of the node.
         """
         # Finally some data, but don't read it if it is big
         # Instead record the location, type and size
-        path = path+"/"+name
         self.opendata(name)
         attrs = self._readattrs()
-        if 'target' in attrs and attrs['target'].nxdata != path:
+        if 'target' in attrs and attrs['target'].nxdata != self.path:
             # This is a linked dataset; don't try to load it.
             #print "read link %s->%s"%(path,attrs['target'].nxdata)
             data = NXlink(name,nxclass='SDS',attrs=attrs)
@@ -243,17 +242,17 @@ class NeXusTree(nexus.napi.NeXus):
             else:
                 value = None
             data = self.SDS(name,type,dims,attrs=attrs,value=value,
-                               file=self,path=path)
+                               file=self,path=self.path)
         self.closedata()
         return data
 
-    def _readchildren(self,n,path):
+    def _readchildren(self,n):
         children = {}
         for i in range(n):
             name,nxclass = self.getnextentry()
-            #print "name,class,path",name,nxclass,path
+            #print "name,class,path",name,nxclass,self.path
             if nxclass == 'SDS':
-                children[name] = self._readdata(name,path)
+                children[name] = self._readdata(name)
             elif nxclass.startswith('NX'):
                 self.opengroup(name,nxclass)
                 children[name] = self._readgroup()
@@ -269,18 +268,15 @@ class NeXusTree(nexus.napi.NeXus):
         # TODO: does it make sense to read without recursing?
         # TODO: can we specify which NXclasses we are interested
         # in and skip those of different classes?
-        n,_,nxclass = self.getgroupinfo()
-        # getgroupinfo doesn't seem to return the correct path, so reconstruct
-        path = '/' + '/'.join(self.path)
-        name = path.split('/')[-1]
+        n,name,nxclass = self.getgroupinfo()
         attrs = self._readattrs()
-        if 'target' in attrs and attrs['target'].nxdata != path:
+        if 'target' in attrs and attrs['target'].nxdata != self.path:
             # This is a linked group; don't try to load it.
-            #print "read group link %s->%s"%(attrs['target'].nxdata,path)
+            #print "read group link %s->%s"%(attrs['target'].nxdata,self.path)
             group = self.NXlink(name,nxclass=nxclass,attrs=attrs)
         else:
-            #print "read group",nxclass,"from",path
-            children = self._readchildren(n,path)
+            #print "read group",nxclass,"from",self.path
+            children = self._readchildren(n)
             # If we are subclassed with a handler for the particular
             # NXentry class name use that constructor for the group
             # rather than the generic NXgroup class.
@@ -546,6 +542,7 @@ class SDS(NXnode):
     """
     def __init__(self,name,dtype='',shape=[],file=None,path=None,
                  attrs=None,value=None,group=None):
+        #print "creating data node for",path
         self._file = file
         self._path = path
         self._value = value
@@ -885,10 +882,10 @@ def demo(argv):
     if op == 'ls':
         for f in argv[2:]: dir(f)
     elif op == 'copy' and len(argv)==4:
-        tree = read(argv[2])
-        write(argv[3], tree)
+        tree = load(argv[2])
+        save(argv[3], tree)
     elif op == 'plot' and len(argv)==4:
-        tree = read(argv[2])
+        tree = load(argv[2])
         for entry in argv[3].split('.'):
             tree = getattr(tree,entry)
         tree.nxplot()
