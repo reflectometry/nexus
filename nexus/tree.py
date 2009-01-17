@@ -246,12 +246,17 @@ class NeXusTree(nexus.napi.NeXus):
         self.closedata()
         return data
 
+    # These are groups that HDFView explicitly skips
+    _skipgroups = ['CDF0.0','_HDF_CHK_TBL_','Attr0.0','RIG0.0','RI0.0',
+                   'RIATTR0.0N','RIATTR0.0C']
     def _readchildren(self,n):
         children = {}
         for i in range(n):
             name,nxclass = self.getnextentry()
             #print "name,class,path",name,nxclass,self.path
-            if nxclass == 'SDS':
+            if nxclass in self._skipgroups:
+                pass # Skip known bogus classes
+            elif nxclass == 'SDS':
                 children[name] = self._readdata(name)
             elif nxclass.startswith('NX'):
                 self.opengroup(name,nxclass)
