@@ -6,7 +6,9 @@
 NeXus tests converted to python.
 """
 
-import nxs,os,numpy,sys
+import os,sys
+import numpy
+import nexus as nxs
 
 def memfootprint():
     import gc
@@ -44,7 +46,6 @@ def _show(file, indent=0):
     for attr,value in file.attrs():
         print "%(prefix)s@%(attr)s: %(value)s" % locals()
     for name,nxclass in file.entries():
-        if nxclass.startswith("CDF"): continue # Root has an extra CDF class
         if nxclass == "SDS":
             shape,dtype = file.getinfo()
             dims = "x".join([str(x) for x in shape])
@@ -132,17 +133,17 @@ def populate(filename,mode):
 
     # .. demonstrate extensible data
     file.makedata('flush_data','int32',[nxs.UNLIMITED])
+    file.opendata('flush_data')
     for i in range(7):
-        file.opendata('flush_data')
         file.putslab(i,[i],[1])
-        file.flush()
-        # Oops... why isn't there a closedata()?
+    file.closedata()
+    file.flush()
     file.closegroup()
 
     # Create NXsample group
     file.makegroup('sample','NXsample')
     file.opengroup('sample','NXsample')
-    file.makedata('ch_data','char',[12])
+    file.makedata('ch_data','char',[20])
     file.opendata('ch_data')
     file.putdata('NeXus sample')
     file.closedata()
@@ -231,6 +232,7 @@ def check(filename, mode):
         if not (get == expected).all(): 
             fail("%s retrieved %s"%(dtype,get))
 
+
     # Check attribute types
     file.opendata('r8_data')
     get = file.getattr("ch_attribute",5,'char')
@@ -255,16 +257,36 @@ def check(filename, mode):
     comp_array=numpy.ones((100,20),dtype='int32')
     for i in range(100): comp_array[i,:] *= i
     expected = comp_array
-    file.opengroup('data','NXdata')
-    file.opendata('comp_data')
+    file.opengroup('data','NXdata') #/entry/data
+    file.opendata('comp_data')      #/entry/data/comp_data
     get = file.getdata()
-    file.closedata()  #/entry/data/comp_data
-    file.closegroup() #/entry/data
+    file.closedata()                #/entry/data/comp_data
+    file.closegroup()               #/entry/data
     if not (get == expected).all():
         fail("compressed data differs")
         print get
-    file.closegroup() #/entry
         
+    # Check strings
+    file.opengroup('sample','NXsample') #/entry/sample
+    file.opendata('ch_data')            #/entry/sample/ch_data
+    rawshape,rawdtype = file.getrawinfo()
+    shape,dtype = file.getinfo()
+    get = file.getdata()
+    file.closedata()                    #/entry/sample/ch_data
+    file.closegroup()                   #/entry/sample
+    if not (shape[0]==12 and dtype=='char'):
+        fail("returned string info is incorrect")
+        print shape,dtype
+    if not (rawshape[0]==20 and rawdtype=='char'):
+        fail("returned string storage info is incorrect")
+        print shape,dtype
+    if not (get == "NeXus sample"):
+        fail("returned string is incorrect")
+        print shape,dtype
+
+
+    file.closegroup() #/entry
+
     # Check read slab (e.g., from extensible)
 
     # Check links

@@ -314,9 +314,16 @@ class NeXus(object):
             raise NeXusError, "Could not %s %s"%(op,filename)
         self.isopen = True
 
-    def _getpath(self): 
-        return '/'+'/'.join(self._path)
+    def _getpath(self):
+        mypath = [level[0] for level in self._path]
+        return '/'+'/'.join(mypath)
     path = property(_getpath,doc="Unix-style path to node")
+
+    def _getlongpath(self):
+        mypath = [':'.join(level) for level in self._path]
+        return '/' + '/'.join(mypath)
+    longpath = property(_getlongpath, doc="Unix-style path including " \
+                        + "nxclass to the node")
 
     def __del__(self):
         """
@@ -411,6 +418,7 @@ class NeXus(object):
 
         Corresponds to NXmakegroup(handle, name, nxclass)
         """
+        #print "makegroup",self._loc(),name,nxclass
         status = nxlib.nximakegroup_(self.handle, name, nxclass)
         if status == ERROR:
             raise NeXusError,\
@@ -420,10 +428,13 @@ class NeXus(object):
     nxlib.nxiopenpath_.argtypes = [c_void_p, c_char_p]
     def openpath(self, path):
         """
-        Open a particular group '/path/to/group'.  Paths can
-        be absolute or relative to the currently open group.
-        If openpath fails, then currently open path may not
-        be different from the starting path.
+        Open a particular group '/path/to/group'.  Paths can be
+        absolute or relative to the currently open group.  If openpath
+        fails, then currently open path may not be different from the
+        starting path. For better performation the types can be
+        specified as well using '/path:type1/to:type2/group:type3'
+        which will prevent searching the file for the types associated
+        with the supplied names.
 
         Raises ValueError.
 
@@ -436,10 +447,13 @@ class NeXus(object):
         # Determine target node as sequence of group names
         if path == '/':
             target = []
-        elif path.startswith('/'):
-            target = path[1:].split('/')
         else:
-            target = self._path + path.split('/')
+            if path.endswith("/"):
+                path = path[:-1]
+            if path.startswith('/'):
+                target = path[1:].split('/')
+            else:
+                target = self._path + path.split('/')
 
         # Remove relative path indicators from target
         L = []
@@ -454,13 +468,27 @@ class NeXus(object):
             else:
                 L.append(t)
         target = L
+
+        # split out nxclass from each level if available
+        L = []
+        for t in target:
+            try:
+                item = t.split(":")
+                if len(item) == 1:
+                    L.append((item[0], None))
+                else:
+                    L.append(tuple(item))
+            except AttributeError:
+                L.append(t)
+        target = L
+
         #print "current path",self._path
         #print "%s"%path,target
 
         # Find which groups need to be closed and opened
         up = []
         down = []
-        for i,name in enumerate(target):
+        for (i, (name, nxclass)) in enumerate(target):
             if i == len(self._path):
                 #print "target longer than current"
                 up = []
@@ -475,7 +503,13 @@ class NeXus(object):
             #print "target shorter than current"
             up = self._path[len(target):]
             down = []
-        up.reverse()
+
+        # add more information to the down path
+        for i in xrange(len(down)):
+            try:
+                (name, nxclass) = down[i]
+            except ValueError:
+                down[i] = (down[i], None)
         #print "close,open",up,down
 
         # Close groups on the way up
@@ -487,19 +521,13 @@ class NeXus(object):
         
         # Open groups on the way down
         for target in down:
-            # Find target name in current group.  We need to do this because
-            # we can't open the group without knowing the class.  We also
-            # need the class so that we can handle SDS specially.
-            n,_,_ = self.getgroupinfo()
-            self.initgroupdir()
-            for i in range(n):
-                name,nxclass = self.getnextentry()
-                if name != target: continue
-                if nxclass != 'SDS':
-                    self.opengroup(name,nxclass)
-                elif opendata: 
-                    self.opendata(name)
-                break
+            (name, nxclass) = target
+            if nxclass is None:
+                nxclass = self.__getnxclass(name)
+            if nxclass != "SDS":
+                self.opengroup(name, nxclass)
+            elif opendata:
+                self.opendata(name)
             else:
                 raise ValueError("node %s not in %s"%(name,self.path))
 
@@ -519,20 +547,23 @@ class NeXus(object):
 
     nxlib.nxiopengroup_.restype = c_int
     nxlib.nxiopengroup_.argtypes = [c_void_p, c_char_p, c_char_p]
-    def opengroup(self, name, nxclass):
+    def opengroup(self, name, nxclass=None):
         """
-        Open the group nxclass:name.
+        Open the group nxclass:name. If the nxclass is not specified
+        this will search for it.
 
         Raises ValueError if the group could not be opened.
 
         Corresponds to NXopengroup(handle, name, nxclass)
         """
-        #print "open group",nxclass,name
+        #print "opengroup",self._loc(),name,nxclass
+        if nxclass is None:
+            nxclass = self.__getnxclass(name)
         status = nxlib.nxiopengroup_(self.handle, name, nxclass)
         if status == ERROR:
             raise ValueError,\
                 "Could not open %s:%s in %s"%(nxclass,name,self._loc())
-        self._path.append(name)
+        self._path.append((name,nxclass))
 
     nxlib.nxiclosegroup_.restype = c_int
     nxlib.nxiclosegroup_.argtypes = [c_void_p]
@@ -544,10 +575,12 @@ class NeXus(object):
 
         Corresponds to NXclosegroup(handle)
         """
-        #print "close group"
+        #print "closegroup"
+        if self._indata:
+            raise NeXusError, "Close data before group at %s"%(self._loc())
         status = nxlib.nxiclosegroup_(self.handle)
         if status == ERROR:
-            raise NeXusError, "Could not close group at %s"%(name,self._loc())
+            raise NeXusError, "Could not close group at %s"%(self._loc())
         self._path.pop()
 
     nxlib.nxigetgroupinfo_.restype = c_int
@@ -572,7 +605,7 @@ class NeXus(object):
         status = nxlib.nxigetgroupinfo_(self.handle,_ref(n),path,nxclass)
         if status == ERROR:
             raise ValueError, "Could not get group info: %s"%(self._loc())
-        #print "group info",nxclass.value,name.value,n.value
+        #print "getgroupinfo",self._loc(),nxclass.value,name.value,n.value
         name = path.value.split('/')[-1]  # Protect against HDF5 returning path
         return n.value,name,nxclass.value
 
@@ -595,9 +628,10 @@ class NeXus(object):
     nxlib.nxigetnextentry_.argtypes = [c_void_p, c_char_p, c_char_p, c_int_p]
     def getnextentry(self):
         """
-        Return the next entry in the group as name,nxclass tuple.
+        Return the next entry in the group as name,nxclass tuple. If
+        end of data is reached this returns the tuple (None, None)
 
-        Raises NeXusError if this fails, or if there is no next entry.
+        Raises NeXusError if this fails.
 
         Corresponds to NXgetnextentry(handle,name,nxclass,&storage).
 
@@ -615,14 +649,47 @@ class NeXus(object):
         nxclass = ctypes.create_string_buffer(MAXNAMELEN)
         storage = c_int(0)
         status = nxlib.nxigetnextentry_(self.handle,name,nxclass,_ref(storage))
-        if status == ERROR or status == EOD:
+        if status == EOD:
+            return (None, None)
+        if status == ERROR:
             raise NeXusError, \
                 "Could not get next entry: %s"%(self._loc())
         ## Note: ignoring storage --- it is useless without dimensions
         #if nxclass == 'SDS':
         #    dtype = _pytype_code(storage.value)
-        #print "group next",nxclass.value, name.value, storage.value
+        #print "nextentry",nxclass.value, name.value, storage.value
         return name.value,nxclass.value
+
+    def getentries(self):
+        """
+        Return a dictionary of the groups[name]=type below the
+        existing open one.
+
+        Raises NeXusError if this fails.
+        """
+        self.initgroupdir()
+        result = {}
+        (name, nxclass) = self.getnextentry()
+        if (name, nxclass) != (None, None):
+            result[name] = nxclass
+        while (name, nxclass) != (None, None):
+            result[name] = nxclass
+            (name, nxclass) = self.getnextentry()
+        return result
+
+    def __getnxclass(self, target):
+        """
+        Return the nxclass of the supplied name.
+        """
+        self.initgroupdir()
+        while True:
+            (nxname, nxclass) = self.getnextentry()
+            if nxname == target:
+                return nxclass
+            if nxname is None:
+                break
+        raise NeXusError("Failed to find entry with name \"%s\" " \
+                         + "at %s" % (target, self.path))
 
     def entries(self):
         """
@@ -663,6 +730,39 @@ class NeXus(object):
             yield name,nxclass
 
     # ==== Data ====
+    nxlib.nxigetrawinfo_.restype = c_int
+    nxlib.nxigetrawinfo_.argtypes = [c_void_p, c_int_p, c_void_p, c_int_p]
+    def getrawinfo(self):
+        """
+        Returns the tuple dimensions,type for the currently open dataset.
+        Dimensions is an integer array whose length corresponds to the rank
+        of the dataset and whose elements are the size of the individual
+        dimensions.  Storage type is returned as a string, with 'char' for
+        a stored string, '[u]int[8|16|32]' for various integer values or
+        'float[32|64]' for floating point values.  No support for
+        complex values.
+
+        Unlike getinfo(), the size of the string storage area is
+        returned rather than the length of the stored string.
+
+        Raises NeXusError if this fails.
+
+        Corresponds to NXgetrawinfo(handle, &rank, dims, &storage),
+        but with storage converted from HDF values to numpy compatible
+        strings, and rank implicit in the length of the returned dimensions.
+        """
+        rank = c_int(0)
+        shape = numpy.zeros(MAXRANK, 'i')
+        storage = c_int(0)
+        status = nxlib.nxigetrawinfo_(self.handle, _ref(rank), shape.ctypes.data,
+                                     _ref(storage))
+        if status == ERROR:
+            raise NeXusError, "Could not get data info: %s"%(self._loc())
+        shape = shape[:rank.value]+0
+        dtype = _pytype_code[storage.value]
+        #print "getrawinfo",self._loc(),"->",shape,dtype
+        return shape,dtype
+
     nxlib.nxigetinfo_.restype = c_int
     nxlib.nxigetinfo_.argtypes = [c_void_p, c_int_p, c_void_p, c_int_p]
     def getinfo(self):
@@ -674,6 +774,9 @@ class NeXus(object):
         a stored string, '[u]int[8|16|32]' for various integer values or
         'float[32|64]' for floating point values.  No support for
         complex values.
+
+        Unlike getrawinfo(), the length of the stored string is
+        returned rather than the size of the string storage area.
 
         Raises NeXusError if this fails.
 
@@ -693,7 +796,7 @@ class NeXus(object):
             raise NeXusError, "Could not get data info: %s"%(self._loc())
         shape = shape[:rank.value]+0
         dtype = _pytype_code[storage.value]
-        #print "data info",shape,dtype
+        #print "getinfo",self._loc(),"->",shape,dtype
         return shape,dtype
 
     nxlib.nxiopendata_.restype = c_int
@@ -706,11 +809,14 @@ class NeXus(object):
 
         Corresponds to NXopendata(handle, name)
         """
-        #print "opening data",name
-        status = nxlib.nxiopendata_(self.handle, name)
+        #print "opendata",self._loc(),name
+        if self._indata:
+            status = ERROR
+        else:
+            status = nxlib.nxiopendata_(self.handle, name)
         if status == ERROR:
             raise ValueError, "Could not open data %s: %s"%(name, self._loc())
-        self._path.append(name)
+        self._path.append((name,"SDS"))
         self._indata = True
 
     nxlib.nxiclosedata_.restype = c_int
@@ -724,11 +830,11 @@ class NeXus(object):
 
         Corresponds to NXclosedata(handle)
         """
-        #print "closing data"
+        #print "closedata"
         status = nxlib.nxiclosedata_(self.handle)
         if status == ERROR:
             raise NeXusError,\
-                "Could not close data at %s"%(name,self._loc())
+                "Could not close data at %s"%(self._loc())
         self._path.pop()
         self._indata = False
 
@@ -750,7 +856,7 @@ class NeXus(object):
         # TODO: compmakedata.
         # TODO: With keywords for value and attr, this can be used for
         # TODO: makedata, opendata, putdata, putattr, putattr, ..., closedata
-        #print "Data",name,dtype,shape
+        #print "makedata",self._loc(),name,shape,dtype
         storage = _nxtype_code[str(dtype)]
         shape = numpy.array(shape,'i')
         status = nxlib.nximakedata_(self.handle,name,storage,len(shape),
@@ -800,7 +906,10 @@ class NeXus(object):
         """
         Return the data.  If data is a string (1-D char array), a python
         string is returned.  If data is a scalar (1-D numeric array of
-        length 1), a python numeric scalar is returned.
+        length 1), a python scalar is returned.  If data is a string 
+        array, a numpy array of type 'S#' where # is the maximum string
+        length is returned.  If data is a numeric array, a numpy array
+        is returned.
 
         Raises ValueError if this fails.
 
@@ -808,11 +917,11 @@ class NeXus(object):
         """
         # TODO: consider accepting preallocated data so we don't thrash memory
         shape,dtype = self.getinfo()
-        datafn,pdata,size = self._poutput(dtype,shape)
+        data,pdata,size,datafn = self._poutput(dtype,shape)
         status = nxlib.nxigetdata_(self.handle,pdata)
         if status == ERROR:
             raise ValueError, "Could not read data: %s"%(self._loc())
-        #print "data",ret()
+        #print "getdata",self._loc(),shape,dtype
         return datafn()
 
     nxlib.nxigetslab_.restype = c_int
@@ -829,8 +938,8 @@ class NeXus(object):
         Corresponds to NXgetslab(handle,data,offset,shape)
         """
         # TODO: consider accepting preallocated data so we don't thrash memory
-        shape,dtype = self.getinfo()
-        datafn,pdata,size = self._poutput(dtype,slab_shape)
+        shape,dtype = self.getrawinfo()
+        data,pdata,size,datafn = self._poutput(dtype,slab_shape)
         slab_offset = numpy.array(slab_offset,'i')
         slab_shape = numpy.array(slab_shape,'i')
         status = nxlib.nxigetslab_(self.handle,pdata,
@@ -851,7 +960,8 @@ class NeXus(object):
 
         Corresponds to NXputdata(handle, data)
         """
-        shape,dtype = self.getinfo()
+        shape,dtype = self.getrawinfo()
+        #print "putdata",self._loc(),shape,dtype
         data,pdata = self._pinput(data,dtype,shape)
         status = nxlib.nxiputdata_(self.handle,pdata)
         if status == ERROR:
@@ -870,7 +980,7 @@ class NeXus(object):
 
         Corresponds to NXputslab(handle,data,offset,shape)
         """
-        shape,dtype = self.getinfo()
+        shape,dtype = self.getrawinfo()
         data,pdata = self._pinput(data,dtype,slab_shape)
         slab_offset = numpy.array(slab_offset,'i')
         slab_shape = numpy.array(slab_shape,'i')
@@ -941,10 +1051,12 @@ class NeXus(object):
         length = c_int(0)
         storage = c_int(0)
         status = nxlib.nxigetnextattr_(self.handle,name,_ref(length),_ref(storage))
+        if status == EOD:
+            return (None, None, None)
         if status == ERROR or status == EOD:
             raise NeXusError, "Could not get next attr: %s"%(self._loc())
         dtype = _pytype_code[storage.value]
-        #print "next attr",name.value,length.value,dtype
+        #print "getnextattr",name.value,length.value,dtype
         return name.value, length.value, dtype
 
     # TODO: Resolve discrepency between NeXus API documentation and
@@ -960,14 +1072,14 @@ class NeXus(object):
         Corresponds to NXgetattr(handle,name,data,&length,&storage)
         """
         if dtype is 'char': length += 1  # HDF4 needs zero-terminator
-        datafn,pdata,size = self._poutput(str(dtype),[length])
+        data,pdata,size,datafn = self._poutput(str(dtype),[length])
         storage = c_int(_nxtype_code[str(dtype)])
-        #print "retrieving",name,length,dtype,size
+        #print "getattr",self._loc(),name,length,size,dtype
         size = c_int(size)
         status = nxlib.nxigetattr_(self.handle,name,pdata,_ref(size),_ref(storage))
         if status == ERROR:
             raise ValueError, "Could not read attr %s: %s" % (name,self._loc())
-        #print "attr",name,datafn(),size
+        #print "getattr",self._loc(),name,datafn()
         return datafn()
 
     nxlib.nxiputattr_.restype = c_int
@@ -1019,6 +1131,17 @@ class NeXus(object):
         status = nxlib.nxiputattr_(self.handle,name,data,length,storage)
         if status == ERROR:
             raise NeXusError, "Could not write attr %s: %s"%(name,self._loc())
+
+    def getattrs(self):
+        """
+        Returns a dicitonary of the attributes on the current node.
+
+        This is a second form of attrs(self).
+        """
+        result = {}
+        for (name, value) in self.attrs():
+            result[name] = value
+        return result
 
     def attrs(self):
         """
@@ -1226,67 +1349,67 @@ class NeXus(object):
     def _poutput(self, dtype, shape):
         """
         Build space to collect a nexus data element.
-        Returns datafn,data,size where
-        - datafn is a lamba expression to extract the value out of the element.
-        - pdata is the value to pass to C (effectively a void *)
+        Returns data,pdata,size,datafn where
+        - data is a python type to hold the returned data
+        - pdata is the pointer to the start of the data
         - size is the number of bytes in the data block
-        Note that ret can return a string, a scalar or an array depending
+        - datafn is a lamba expression to extract the return value from data
+        Note that datafn can return a string, a scalar or an array depending
         on the data type and shape of the data group.
         """
         if len(shape) == 1 and dtype == 'char':
             # string - use ctypes allocator
             size = int(shape[0])
-            pdata = ctypes.create_string_buffer(size)
-            datafn = lambda: pdata.value
+            data = ctypes.create_string_buffer(size)
+            pdata = data
+            datafn = lambda: data.value
         else:
-            # numeric - use numpy array
-            if dtype=='char': dtype = 'uint8'
-            data = numpy.zeros(shape,dtype)
+            # scalar, array or string list - use numpy array
+            if dtype=='char': 
+                data = numpy.zeros(shape[:-1], dtype='S%i'%shape[-1])
+            else:
+                data = numpy.zeros(shape, dtype)
             if len(shape) == 1 and shape[0] == 1:
                 datafn = lambda: data[0]
             else:
                 datafn = lambda: data
             pdata = data.ctypes.data
             size = data.nbytes
-        return datafn,pdata,size
+        return data,pdata,size,datafn
 
     def _pinput(self, data, dtype, shape):
         """
-        Convert an input array to a C pointer to a dense array.  This may
-        require conversion of the array, so the new array is returned along
-        with its pointer.
+        Convert an input array to a C pointer to a dense array.
+
+        Returns data, pdata where 
+        - data is a possibly new copy of the array
+        - pdata is a pointer to the beginning of the array.  
+        Note that you must hold a reference to data for as long 
+        as you need pdata to keep the memory from being released to the heap.
         """
         if dtype == "char":
-            # Character data - pad with zeros to the right length
-            if not _is_string_like(data):
-                raise ValueError,"Expected character data: %s"%(self._loc())
-            if len(data) < shape[0]:
-                data += '\000'*(shape[0]-len(data))
+            data = numpy.asarray(data, dtype='S%d'%(shape[-1]))
         else:
             # Convert scalars to vectors of length one
             if numpy.prod(shape) == 1 and not hasattr(data,'shape'):
-                data = numpy.array([data],dtype=dtype)
+                data = numpy.array([data], dtype=dtype)
             # Check that dimensions match
             # Ick! need to exclude dimensions of length 1 in order to catch
             # array slices such as a[:,1], which only report one dimension
             input_shape = numpy.array([i for i in data.shape if i != 1])
             target_shape = numpy.array([i for i in shape if i != 1])
-            if len(input_shape) != len(target_shape) or (input_shape != target_shape).any():
+            if len(input_shape) != len(target_shape) \
+                    or (input_shape != target_shape).any():
                 raise ValueError,\
-                    "Shape mismatch %s!=%s: %s"%(data.shape,shape,self.filename)
+                    "Shape mismatch %s!=%s: %s"%(data_shape,shape,self._loc())
+            # Check data type
             if str(data.dtype) != dtype:
                 raise ValueError,\
                     "Type mismatch %s!=%s: %s"%(dtype,data.dtype,self._loc())
 
-        if dtype == 'char':
-            # String: hand it over as usual for strings.  Assumes the string
-            # is the correct length for the storage area.
-            pdata = data
-        else:
-            # Vector: assume it is of the correct storage class and size
-            data = numpy.ascontiguousarray(data)
-            pdata = data.ctypes.data
-
+        data = numpy.ascontiguousarray(data)
+        pdata = data.ctypes.data
+            
         return data,pdata
 
     def show(self, path=None, indent=0):
