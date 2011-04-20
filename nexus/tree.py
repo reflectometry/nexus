@@ -239,7 +239,7 @@ class NeXusTree(nexus.napi.NeXus):
             data = NXlink(name,nxclass='SDS',attrs=attrs)
         else:
             dims,type = self.getinfo()
-            if numpy.prod(dims) < 1000:
+            if numpy.prod(dims) < 1000: # Fewer than 1000 elements
                 value = self.getdata()
             else:
                 value = None
@@ -925,7 +925,6 @@ class PylabPlotter(object):
 
         # Find the centers of the bins for histogrammed data
         axis_data = centers(signal, axes)
-        title = title
 
         #One-dimensional Plot
         if len(signal.nxdims) == 1:
@@ -990,7 +989,7 @@ class NXgroup(NXnode):
     
     Special Keyword Arguments:
 
-    nxname : string
+    name : string
         The name of the NXgroup, which is directly accessible as the NXgroup 
         attribute 'nxname'. If the NXgroup is initialized as the attribute of 
         a parent node, the name is automatically set to the name of this 
@@ -1194,7 +1193,7 @@ class NXgroup(NXnode):
 
         # Construct title
         path = []
-        node = group 
+        node = group
         title = ''
         while node.nxgroup is not None:
             if node.nxclass == 'NXentry':

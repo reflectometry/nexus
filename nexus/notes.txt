@@ -1,0 +1,18 @@
+This package includes a partial backport of changes from nexpy.
+
+1. Attributes are not tagged as "A<attr>".  Note that there is a risk that an attribute name in the group will match a field name, so there may be a collision.  I don't test for it, and I didn't look to see if your code tests for it.
+
+2. nexpy handles links differently.  I haven't looked through the code to see why.
+
+3. In a number of circumstances nexpy captures errors such as readpath not returning a result and instead returning None.  I prefer to leave it to the caller to catch errors.
+
+4. Rather than storing file and path in the SDS, nexpy walks the tree to find them.  I don't know why it is done that way, so I haven't copied it over. Maybe because it allowing an SDS to move to a different part of the tree?  
+
+5. Nexpy implements math in various classes, and somewhat inconsistently.  I think we can isolate it to NXnode.  I would also like to implement sum(f.Histogram1), etc. rather than f.Histogram1.nxsum().  We can put these functions in nexus.math and the user can choose whether or not to use them.  Obviously, they can degrade to numpy operations if they are not NXnode operands.
+
+6. I didn't copy the slice semantics for floats : radically different behaviour for integer and float inputs is too error prone.  I think an nxslice function is a safer approach.
+
+7. I made miscellaneous improvements during the backport that should be clear from the diff.
+
+Further work is needed before this package is ready for inclusion in nexpy or the original nexus distribution, but these will have to wait until time is available.
+
