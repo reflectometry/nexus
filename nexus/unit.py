@@ -12,8 +12,8 @@ need now.  It does not support the complete dimensional analysis provided
 by the package udunits on which NeXus is based, or even the units used
 in the NeXus definition files.
 
-Unlike other units modules, this module does not carry the units along 
-with the value, but merely provides a conversion function for 
+Unlike other units modules, this module does not carry the units along
+with the value, but merely provides a conversion function for
 transforming values.
 
 Usage example::
@@ -72,7 +72,7 @@ def _build_metric_units(unit,abbr):
 
     Ack! Allows, e.g., Coulomb and coulomb even though Coulomb is not
     a unit because some NeXus files store it that way!
-    
+
     Returns a dictionary of names and scales.
     """
     prefix = dict(peta=1e15,tera=1e12,giga=1e9,mega=1e6,kilo=1e3,
@@ -110,6 +110,7 @@ def _build_all_units():
     # Note: minutes are used for angle rather than time
     time = _build_metric_units('second','s')
     time.update(_build_plural_units(hour=3600,day=24*3600,week=7*24*3600))
+    time.update({'1e-7 s':1e-7, '1e-7 second':1e-7, '1e-7 seconds':1e-7})
 
     # Various angle measures.
     # Note: seconds are used for time rather than angle
@@ -178,7 +179,7 @@ class Converter(object):
         try:
             return value * (self.scalebase/self.scalemap[units])
         except KeyError:
-            raise KeyError("%s not in %s"%(units," ".join(self.scalemap.keys())))
+            raise KeyError("%s not in %s"%(units," ".join(sorted(self.scalemap.keys()))))
 
 def _check(expect,get):
     if expect != get: raise ValueError, "Expected %s but got %s"%(expect,get)

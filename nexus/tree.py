@@ -8,7 +8,7 @@ The `nexus.tree` routines provide a natural interface to NeXus datasets.
 Entries in a group are referenced much like fields in a class are
 referenced in python.  Rather than following the directory model of
 the `nexus.napi` interface, users are free to reference separate fields
-in the dataset at the same time.  Large datasets are not read until 
+in the dataset at the same time.  Large datasets are not read until
 they are needed, and may be read or written one slab at a time.
 
 There are a number of functions which operate on files::
@@ -21,9 +21,9 @@ There are a number of functions which operate on files::
 The tree returned from load() has an entry for each group, field and
 attribute.  You can traverse the hierarchy using the names of the
 groups.  For example, tree.entry.instrument.detector.distance is an
-example of a field containing the distance to each pixel in the 
-detector. Entries can also be referenced by NXclass name, such as 
-tree.NXentry[0].instrument. Since there may be multiple entries of the 
+example of a field containing the distance to each pixel in the
+detector. Entries can also be referenced by NXclass name, such as
+tree.NXentry[0].instrument. Since there may be multiple entries of the
 same NXclass, the NXclass attribute returns a possibly empty list.
 
 Properties of the entry in the tree are referenced by nx attributes.
@@ -65,7 +65,7 @@ on which facility is storing the file.  This makes life difficult
 for reduction and analysis programs which must know the units they
 are working with.  Our solution to this problem is to allow the reader
 to retrieve data from the file in particular units.  For example, if
-detector distance is stored in the file using millimeters you can 
+detector distance is stored in the file using millimeters you can
 retrieve them in meters using::
     entry.instrument.detector.distance.nxdata_as('m')
 See `nexus.unit` for more details on the unit formats supported.
@@ -91,12 +91,12 @@ functions __enter__ and __exit__::
     ... do the slab functions ...
     data.nxslab.__exit__()
 
-You can traverse the tree by component class instead of component name.  
+You can traverse the tree by component class instead of component name.
 Since there may be multiple components of the same class in one group
-you will need to specify which one to use.  For example, 
-tree.NXentry[0].NXinstrument[0].NXdetector[0].distance references the 
-first detector of the first instrument of the first entry.  Unfortunately, 
-there is no guarantee regarding the order of the entries, and it may vary 
+you will need to specify which one to use.  For example,
+tree.NXentry[0].NXinstrument[0].NXdetector[0].distance references the
+first detector of the first instrument of the first entry.  Unfortunately,
+there is no guarantee regarding the order of the entries, and it may vary
 from call to call, so the above is of limited utility.
 
 The nxplot() method for groups uses matplotlib to plot the data.  You
@@ -110,7 +110,7 @@ listing the signal sample points, entry is file/path within the file
 to the data group and title is the title of the NXentry, if available.
 
 The load() and save() functions are implemented using the class
-`nexus.tree.NeXusTree`, a subclass of `nexus.napi.NeXus` which allows 
+`nexus.tree.NeXusTree`, a subclass of `nexus.napi.NeXus` which allows
 all the usual API functions.  You can subclass NeXusTree with your
 own version that defines, e.g., a NXmonitor() method to return an
 NXmonitor object when an NXmonitor class is read.  Your NXmonitor
@@ -162,13 +162,13 @@ class NeXusTree(nexus.napi.NeXus):
     The NXdata nodes in the returned tree hold the node values.
 
     Subclasses can provide methods for individual NeXus classes such
-    as NXbeam or NXdata.  Brave users can also specialize NXgroup, 
+    as NXbeam or NXdata.  Brave users can also specialize NXgroup,
     NXattr, SDS and NXlink methods.
     """
     def readfile(self):
         """
         Read the nexus file structure from the file.  Large datasets
-        are not read until they are needed.  
+        are not read until they are needed.
 
         Returns a tree of NXgroup, SDS and NXlink nodes.
         """
@@ -177,7 +177,7 @@ class NeXusTree(nexus.napi.NeXus):
         root = self._readgroup()
         self.close()
         root.nxgroup = None
-        
+
         # Resolve links
         self._readlinks(root)
         return root
@@ -302,7 +302,7 @@ class NeXusTree(nexus.napi.NeXus):
             for node in children.values():
                 node.nxgroup = group
         return group
-    
+
     def _readlinks(self, root):
         """
         Convert linked nodes into direct references.
@@ -314,7 +314,7 @@ class NeXusTree(nexus.napi.NeXus):
                     link = getattr(link,level)
                 entry.nxlink = link
 
-    # Allow subclasses to override 
+    # Allow subclasses to override
     def NXattr(self, *args, **kw): return NXattr(*args, **kw)
     def SDS(self, *args, **kw): return SDS(*args, **kw)
     def NXgroup(self,*args,**kw): return NXgroup(*args, **kw)
@@ -346,9 +346,8 @@ class NeXusTree(nexus.napi.NeXus):
         if hasattr(data,'_link_target'):
             return [(path, data._link_target)]
 
-        # Finally some data, but don't read it if it is big
-        # Instead record the location, type and size
-        #print "creating data",child.nxname,child.nxdims,child.nxtype
+        # Finally some data.  Compress it if it is large.
+        #print "creating data",data.nxname,data.nxdims,data.nxtype
         if numpy.prod(data.nxdims) > 10000:
             # Compress the fastest moving dimension of large datasets
             slab_dims = numpy.ones(len(data.nxdims),'i')
@@ -447,8 +446,9 @@ def _convert_type(value, nxtype=None):
     if nxtype == '':
         value = numpy.asarray(value)
         if str(value.dtype) not in _nxtype_size:
-             raise TypeError("Expected a string or array")
+            raise TypeError("Expected a string or array")
     else:
+        #print "converting",getattr(value,'dtype',type(value)),"to",nxtype
         value = numpy.asarray(value, nxtype)
     if numpy.isscalar(value):
         value = value.reshape((1,))
@@ -458,7 +458,7 @@ _AXES_SEP=re.compile('[\[]*(\s*,*:*)+[\]]*')
 def _parse_axes(axes):
     """
     Parse the 'axes' attribute for the axis names.
-    
+
     The delimiter separating each axis can be white space, a comma, or a colon.
     """
     return [x for x in _AXES_SEP.split(axes) if len(x)>0]
@@ -496,19 +496,19 @@ class NXattr(object):
 class NXnode(object):
     """
     Abstract base class for elements in NeXus files.
-    
-    The node has a subclass of SDS (Scientific Data Set), NXgroup, or one 
-    of the NXgroup subclasses. Child nodes should be accessible directly as 
-    object attributes. Constructors for NXnode objects are defined by either 
+
+    The node has a subclass of SDS (Scientific Data Set), NXgroup, or one
+    of the NXgroup subclasses. Child nodes should be accessible directly as
+    object attributes. Constructors for NXnode objects are defined by either
     the SDS or NXgroup classes.
-    
+
     Attributes
     ----------
     nxclass : string
-        The class of the NXnode. NXnodes can have class SDS, NXgroup, 
-        or one of the NXgroup subclasses. 
+        The class of the NXnode. NXnodes can have class SDS, NXgroup,
+        or one of the NXgroup subclasses.
     nxname : string
-        The name of the NXnode. 
+        The name of the NXnode.
     nxgroup : NXnode
         The parent NXgroup, if the node is defined as the attribute of parent
         node.
@@ -520,7 +520,7 @@ class NXnode(object):
     nxpath : string
         The path to this node with respect to the root of the NeXus tree. For
         NeXus data read from a file, this will be a group of class NXroot, but
-        if the NeXus tree was defined interactively, it can be any valid 
+        if the NeXus tree was defined interactively, it can be any valid
         NXgroup.
     """
     nxclass = "unknown"
@@ -534,16 +534,16 @@ class NXnode(object):
         return "NXnode('%s','%s')"%(self.nxclass,self.nxname)
 
     def _setattrs(self, attrs):
-        for k,v in attrs.items():          
+        for k,v in attrs.items():
             setattr(self, k, v)
 
     def _attrs(self):
-        return dict([(k,v) 
+        return dict([(k,v)
                      for k,v in self.__dict__.items()
                      if isinstance(v,NXattr)])
 
     def _entries(self):
-        return dict([(k,v) 
+        return dict([(k,v)
                      for k,v in self.__dict__.items()
                      if isinstance(v,NXnode) and not k.startswith('nx')
                         and not k.startswith('_')])
@@ -586,14 +586,14 @@ class NXnode(object):
             result.extend(entries[k]._str_name(indent=indent+2)
                           for k in names)
         return "\n".join(l for l in result if l)
-    
+
     def nxdir(self,attrs=False,recursive=False):
         """
         Print the node directory.
-        
-        The directory is a list of NeXus objects within this node, either 
-        NeXus groups or SDS data. If 'attrs' is True, SDS attributes are 
-        displayed. If 'recursive' is True, the contents of child groups are 
+
+        The directory is a list of NeXus objects within this node, either
+        NeXus groups or SDS data. If 'attrs' is True, SDS attributes are
+        displayed. If 'recursive' is True, the contents of child groups are
         also displayed.
         """
         print self._str_tree(attrs=attrs,recursive=recursive)
@@ -601,9 +601,9 @@ class NXnode(object):
     def nxtree(self,attrs=True):
         """
         Print the directory tree.
-        
-        The tree contains all child objects of this node and their children. 
-        It invokes the 'nxdir' method with both 'attrs' and 'recursive' set 
+
+        The tree contains all child objects of this node and their children.
+        It invokes the 'nxdir' method with both 'attrs' and 'recursive' set
         to True.
         """
         print self._str_tree(attrs=attrs,recursive=True)
@@ -611,26 +611,26 @@ class NXnode(object):
 class SDS(NXnode):
     """
     A NeXus data node (Scientific Data Set).
-    
+
     This is a subclass of NXnode to contain scalar, array, or string data
-    and associated NeXus attributes. 
-    
-    SDS(value=None, name='unknown', dtype='', shape=[], attrs={}, file=None, 
+    and associated NeXus attributes.
+
+    SDS(value=None, name='unknown', dtype='', shape=[], attrs={}, file=None,
         path=None, group=None, **attr)
 
     Parameters
     ----------
     value : scalar value, Numpy array, or string
-        The numerical or string value of the SDS, which is directly accessible 
-        as the SDS attribute 'nxdata'. 
+        The numerical or string value of the SDS, which is directly accessible
+        as the SDS attribute 'nxdata'.
     name : string
-        The name of the SDS, which is directly accessible as the SDS 
-        attribute 'nxname'. If the SDS is initialized as the attribute of 
-        a parent node, the name is automatically set to the name of this 
+        The name of the SDS, which is directly accessible as the SDS
+        attribute 'nxname'. If the SDS is initialized as the attribute of
+        a parent node, the name is automatically set to the name of this
         attribute.
     dtype : string
-        The data type of the SDS value, which is directly accessible as the 
-        SDS attribute 'nxtype'. Valid types correspond to standard Numpy 
+        The data type of the SDS value, which is directly accessible as the
+        SDS attribute 'nxtype'. Valid types correspond to standard Numpy
         data types, using names defined by the NeXus API,
         i.e., 'float32' 'float64'
               'int8' 'int16' 'int32' 'int64'
@@ -640,7 +640,7 @@ class SDS(NXnode):
         by the data type of the 'value' parameter.
     shape : list of ints
         The dimensions of the SDS data, which is accessible as the SDS
-        attribute 'nxdims'. This corresponds to the shape of a Numpy array, 
+        attribute 'nxdims'. This corresponds to the shape of a Numpy array,
         or the length of a string. The shape is [1] if the value is a scalar.
     attrs : dict
         A dictionary containing SDS attributes. The dictionary values should
@@ -648,16 +648,16 @@ class SDS(NXnode):
     file : filename
         The file from which the SDS has been read.
     path : string
-        The path to this node with respect to the root of the NeXus tree, 
+        The path to this node with respect to the root of the NeXus tree,
         using the convention for unix file paths.
     group : NXnode (SDS, NXgroup, or subclass of NXgroup)
-        The parent NeXus node, which is accessible as the SDS attribute 
-        'nxgroup'. If the SDS is initialized as the attribute of 
+        The parent NeXus node, which is accessible as the SDS attribute
+        'nxgroup'. If the SDS is initialized as the attribute of
         a parent node, the group is set to the parent node.
-    
+
     SDS attributes can also be set directly by keyword arguments, which are
     converted to objects of class NXattr, e.g.,
-    
+
         temperature = SDS(40.0, units='K')
 
     Attributes
@@ -665,22 +665,22 @@ class SDS(NXnode):
     nxclass : 'SDS'
         The class of the NXnode.
     nxname : string
-        The name of the SDS. 
+        The name of the SDS.
     nxtype : string
         The data type of the SDS value. Valid values are given above.
     nxdims : list of ints
-        The dimensions of the SDS data. This is equivalent to the shape of a 
-        Numpy array. 
+        The dimensions of the SDS data. This is equivalent to the shape of a
+        Numpy array.
     nxattrs : dict
         A dictionary of the SDS attributes, i.e., those with class NXattr
     nxdata : scalar, Numpy array or string
-        The data value of the SDS. This is normally initialized using the 
-        'value' parameter (see above). If the NeXus data is contained 
-        in a file and the size of the SDS array is too large to be stored 
+        The data value of the SDS. This is normally initialized using the
+        'value' parameter (see above). If the NeXus data is contained
+        in a file and the size of the SDS array is too large to be stored
         in memory, the value is not read in until this attribute is directly
         accessed. Even then, if there is insufficient memory, a value of None
-        will be returned. In this case, the SDS array should be read as a 
-        series of smaller slabs using 'nxget'. 
+        will be returned. In this case, the SDS array should be read as a
+        series of smaller slabs using 'nxget'.
     nxdata_as('units') : scalar value or Numpy array
         If the SDS 'units' attribute has been set, the data values, stored
         in 'nxdata', are returned after conversion to the specified units.
@@ -689,7 +689,7 @@ class SDS(NXnode):
     nxpath : string
         The path to this node with respect to the root of the NeXus tree. For
         NeXus data read from a file, this will be a group of class NXroot, but
-        if the NeXus tree was defined interactively, it can be any valid 
+        if the NeXus tree was defined interactively, it can be any valid
         NXgroup. This is determined by recursively accessing the 'nxgroup'
         attributes of the parent nodes.
 
@@ -697,19 +697,19 @@ class SDS(NXnode):
     -------
     nxdir(self, attrs=False):
         Print the SDS specification.
-        
-        This outputs the name, dimensions and data type of the SDS. 
+
+        This outputs the name, dimensions and data type of the SDS.
         If 'attrs' is True, SDS attributes are displayed.
 
     nxtree(self, attrs=True):
         Print the SDS and its attributes.
-        
+
         It invokes the 'nxdir' method with 'attrs' set to True.
-        
+
     nxsave(filename, format='w5')
         Save the SDS into a file wrapped in a NXroot group and NXentry group
-        with default names. This is equivalent to 
-        
+        with default names. This is equivalent to
+
         >>> NXroot(NXentry(SDS(...))).nxsave(filename)
 
     Examples
@@ -741,11 +741,8 @@ class SDS(NXnode):
         self.nxgroup = group
         # Convert NeXus attributes to python attributes
         self._setattrs(attrs)
-        if 'units' in attrs:
-            units = attrs['units'].nxdata
-        else:
-            units = None
-        self._converter = nexus.unit.Converter(units)
+        units = getattr(self, 'units', None)
+        self._converter = nexus.unit.Converter(self.nxunits)
         self._incontext = False
 
     def __enter__(self):
@@ -753,7 +750,7 @@ class SDS(NXnode):
         Open the datapath for reading slab by slab.
 
         Note: the results are undefined if you try accessing
-        more than one slab at a time.  Don't nest your 
+        more than one slab at a time.  Don't nest your
         "with data" statements!
         """
         # TODO: provide a file lock to prevent movement of the
@@ -779,7 +776,7 @@ class SDS(NXnode):
 
         Offsets are 0-origin.  Shape can be inferred from the data.
         Offset and shape must each have one entry per dimension.
-        
+
         If units are specified, convert the values to the given units
         before returning them.
 
@@ -820,9 +817,12 @@ class SDS(NXnode):
         if self._dirty:
             raise IOError("Cannot mix nxput and nxdata_from")
         if isinstance(data, SDS):
+            # When copying from one SDS to another, convert to the units
+            # of the target SDS.
             data = data.nxdata_as(self.nxunits)
         elif units:
-            data = nexus.unit.Converter(units)(data, self.nxunit)
+            # When storing a block of data, convert to the units of the SDS
+            data = nexus.unit.Converter(units)(data, self.nxunits)
         self._file.putslab(numpy.asarray(data,self.nxtype), offset, data.shape)
         self._value = None # Clear the cached value, if any; it is no longer valid
 
@@ -835,9 +835,11 @@ class SDS(NXnode):
         compatible data types.
         """
         if isinstance(data, SDS):
+            # When adding one SDS to another, first convert to target SDS units
             data = data.nxdata_as(self.nxunits)
         elif units:
-            data = nexus.unit.Converter(units)(data, self.nxunit)
+            # When adding to an SDS, first convert to the SDS units
+            data = nexus.unit.Converter(units)(data, self.nxunits)
 
         current_value = self.nxget(offset, data.shape)
         self.nxput(current_value + data, offset)
@@ -872,10 +874,10 @@ class SDS(NXnode):
     def nxaxes(self):
         """
         Return a list of SDSs containing axes.
-        
+
         Only works if the SDS has the 'axes' attribute
         """
-        return [getattr(self.nxgroup, name) 
+        return [getattr(self.nxgroup, name)
                 for name in _parse_axes(self.axes.nxdata)]
 
     def nxdata_as(self, units=""):
@@ -888,27 +890,57 @@ class SDS(NXnode):
                 raise ValueError("Data larger than NX_MAX_MEMORY")
             self._value = self._file.readpath(self._path)
 
-        return self._converter(self._value,units)
-    
+        #print "retrieving",self.nxname,"as",getattr(self._value,'dtype',type(self._value))
+        if units:
+            return self._converter(self._value,units)
+        else:
+            return self._value
+
+    def nxdata_scale(self, units=""):
+        """
+        Return the scale required to convert from stored data to the
+        particular units.
+        """
+        return self._converter(1.,units)
+
     def nxdata_from(self, value, units=""):
         """
-        Replace the data with a new value.
+        Replace the data with a new value.  The data is converted to the
+        appropriate type and units.  Note that array dimensions are not
+        checked.  Any consistency requirements, such as the time of flight
+        matching the last dimension of the detector, must be checked by
+        the caller.
         """
-        # Type conversion
-        nxtype, nxdims, value = _convert_type(value, self.nxtype)
+        # Unit conversion must happen before type conversion.  For example,
+        # if time is given in float seconds but stored in integer microseconds,
+        # the value needs to be scaled by one million before being converted
+        # to an integer.
+
         # Unit conversion
         if units != "":
-            value = nexus.unit.Converter(units)(value, self.nxunit)
+            value = nexus.unit.Converter(units)(value, self.nxunits)
+        # Type conversion
+        nxtype, nxdims, value = _convert_type(value, self.nxtype)
         # Assignment
-        if self.nxdims is None or nxdims == self.nxdims:
-            self._value = value
-            self.nxtype = nxtype
-            self.nxdims = nxdims
-        else:
-            raise ValueError("Dimensions do not match SDS")
+        self._value = value
+        self.nxtype = nxtype
+        self.nxdims = nxdims
         self._dirty = True
 
-    nxdata = property(fget=nxdata_as, fset=nxdata_from, doc="The data in default units")
+    nxdata = property(fget=nxdata_as, fset=nxdata_from,
+                      doc="The data in default units")
+
+    def _get_units(self):
+        try:
+            return self.units.nxdata
+        except AttributeError:
+            return ""
+    def _set_units(self, value):
+        try:
+            self.units.nxdata = value
+        except AttributeError:
+            self.units = NXattr(value)
+    nxunits = property(_get_units, _set_units, doc="SDS units attribute")
 
 class PylabPlotter(object):
     """
@@ -917,7 +949,7 @@ class PylabPlotter(object):
     def plot(self, signal, axes, title, errorbar=False, hold=False, log=False, **opts):
         """
         Plot the data entry.
-        
+
         Raises NeXusError if the data cannot be plotted.
         """
         import pylab
@@ -932,7 +964,7 @@ class PylabPlotter(object):
                 myopts=copy(opts)
                 myopts.setdefault('fmt','o')
                 myopts.setdefault('linestyle','None')
-                pylab.errorbar(axis_data[0], signal.nxdata, 
+                pylab.errorbar(axis_data[0], signal.nxdata,
                                numpy.sqrt(signal.nxdata), **myopts)
             else:
                 pylab.scatter(axis_data[0], signal.nxdata, **opts)
@@ -940,16 +972,16 @@ class PylabPlotter(object):
             pylab.xlabel(label(axes[0]))
             pylab.ylabel(label(signal))
             pylab.title(title)
- 
+
         #Two dimensional plot
         elif len(signal.nxdims) == 2:
             #gridplot = pylab.pcolormesh
             gridplot = imshow_irregular
             if log:
-                gridplot(axis_data[1], axis_data[0], 
+                gridplot(axis_data[1], axis_data[0],
                          numpy.log10(signal.nxdata.T+1), **opts)
             else:
-                gridplot(axis_data[1], axis_data[0], 
+                gridplot(axis_data[1], axis_data[0],
                          signal.nxdata, **opts)
             pylab.xlabel(label(axes[1]))
             pylab.ylabel(label(axes[0]))
@@ -961,54 +993,54 @@ class PylabPlotter(object):
     @staticmethod
     def show():
         import pylab
-        pylab.show()    
+        pylab.show()
 
 class NXgroup(NXnode):
     """
     A NeXus group node.
-    
+
     This is a subclass of NXnode and is the base class for the specific
-    NeXus group classes, e.g., NXentry, NXsample, NXdata. 
-    
+    NeXus group classes, e.g., NXentry, NXsample, NXdata.
+
     NXgroup(*items, **opts)
 
     Parameters
     ----------
-    The NXgroup parameters consist of a list of positional and/or keyword 
+    The NXgroup parameters consist of a list of positional and/or keyword
     arguments.
-    
-    Positional Arguments : These must be valid NeXus nodes, either an SDS 
-    or a NeXus group. These are added without modification as children of this 
-    group. 
-    
-    Keyword Arguments : Apart from a list of special keywords shown below, 
+
+    Positional Arguments : These must be valid NeXus nodes, either an SDS
+    or a NeXus group. These are added without modification as children of this
+    group.
+
+    Keyword Arguments : Apart from a list of special keywords shown below,
     keyword arguments are used to add children to the group using the keywords
-    as attribute names. The values can either be valid SDS data or NXgroups, 
-    in which case the 'nxname' attribute is changed to the keyword, or they 
+    as attribute names. The values can either be valid SDS data or NXgroups,
+    in which case the 'nxname' attribute is changed to the keyword, or they
     can be numerical or string data, which are converted to SDS objects.
-    
+
     Special Keyword Arguments:
 
     name : string
-        The name of the NXgroup, which is directly accessible as the NXgroup 
-        attribute 'nxname'. If the NXgroup is initialized as the attribute of 
-        a parent node, the name is automatically set to the name of this 
+        The name of the NXgroup, which is directly accessible as the NXgroup
+        attribute 'nxname'. If the NXgroup is initialized as the attribute of
+        a parent node, the name is automatically set to the name of this
         attribute. If 'nxclass' is specified and has the usual prefix 'NX',
         the default name is the class name without this prefix.
     nxclass : string
-        The class of the NXgroup. 
+        The class of the NXgroup.
     entries : dict
-        A dictionary containing a list of group entries. This is an 
-        alternative way of adding group entries to the use of keyword 
+        A dictionary containing a list of group entries. This is an
+        alternative way of adding group entries to the use of keyword
         arguments.
     file : filename
         The file from which the SDS has been read.
     path : string
-        The path to this node with respect to the root of the NeXus tree, 
+        The path to this node with respect to the root of the NeXus tree,
         using the convention for unix file paths.
     group : NXnode (NXgroup or subclass of NXgroup)
-        The parent NeXus node, which is accessible as the group attribute 
-        'nxgroup'. If the group is initialized as the attribute of 
+        The parent NeXus node, which is accessible as the group attribute
+        'nxgroup'. If the group is initialized as the attribute of
         a parent node, this is set to the parent node.
 
     Attributes
@@ -1016,15 +1048,15 @@ class NXgroup(NXnode):
     nxclass : string
         The class of the NXnode.
     nxname : string
-        The name of the SDS. 
+        The name of the SDS.
     nxentries : dict
         A dictionary of all the group entries.
     nxattrs : dict
-        A dictionary of the group attributes. 
+        A dictionary of the group attributes.
     nxpath : string
         The path to this node with respect to the root of the NeXus tree. For
         NeXus data read from a file, this will be a group of class NXroot, but
-        if the NeXus tree was defined interactively, it can be any valid 
+        if the NeXus tree was defined interactively, it can be any valid
         NXgroup. This is determined by recursively accessing the 'nxgroup'
         attributes of the parent nodes.
 
@@ -1032,30 +1064,30 @@ class NXgroup(NXnode):
     -------
     nxdir(self, attrs=False):
         Print the group directory.
-        
-        The directory is a list of NeXus objects within this group, either 
-        NeXus groups or SDS data. If 'attrs' is True, SDS attributes are 
-        displayed. If 'recursive' is True, the contents of child groups are 
+
+        The directory is a list of NeXus objects within this group, either
+        NeXus groups or SDS data. If 'attrs' is True, SDS attributes are
+        displayed. If 'recursive' is True, the contents of child groups are
         also displayed.
 
     nxtree(self, attrs=True):
         Print the SDS and its attributes.
-        
-        It invokes the 'nxdir' method with both 'attrs' and 'recursive' 
+
+        It invokes the 'nxdir' method with both 'attrs' and 'recursive'
         set to True.
-        
+
     nxsave(filename, format='w5')
         Save the NeXus group into a file
 
-        The object is wrapped in an NXroot group (with name 'root') and an 
-        NXentry group (with name 'entry'), if necessary, in order to produce 
+        The object is wrapped in an NXroot group (with name 'root') and an
+        NXentry group (with name 'entry'), if necessary, in order to produce
         a valid NeXus file.
 
     nxsave(filename, format='w5')
         Save the NeXus group into a file
 
-        The object is wrapped in an NXroot group (with name 'root') and an 
-        NXentry group (with name 'entry'), if necessary, in order to produce 
+        The object is wrapped in an NXroot group (with name 'root') and an
+        NXentry group (with name 'entry'), if necessary, in order to produce
         a valid NeXus file.
 
     Examples
@@ -1070,12 +1102,12 @@ class NXgroup(NXnode):
         @units = K
 
     Note: All the currently defined NeXus classes are defined as subclasses
-          of the NXgroup class. It is recommended that these are used 
+          of the NXgroup class. It is recommended that these are used
           directly, so that the above examples become:
 
     >>> entry = NXentry(x)
     >>> entry.sample = NXsample(temperature=SDS(40.0,units='K'))
-     
+
     """
     # Plotter to use for nxplot calls
     _plotter = PylabPlotter()
@@ -1103,18 +1135,18 @@ class NXgroup(NXnode):
     def NOT__setattr__(self, name, value):
         """
         Set a node attribute as a node or regular Python attribute.
-        
-        It is assumed that attributes starting with 'nx' or '_' are regular 
+
+        It is assumed that attributes starting with 'nx' or '_' are regular
         Python attributes. All other attributes are converted to valid NXnodes,
         with class SDS, NXgroup, or a sub-class of NXgroup, depending on the
         assigned value.
-        
-        The internal value of the attribute name, i.e., 'nxname', is set to the 
-        attribute name used in the assignment.  The parent group of the 
+
+        The internal value of the attribute name, i.e., 'nxname', is set to the
+        attribute name used in the assignment.  The parent group of the
         attribute, i.e., 'nxgroup', is set to the parent node of the attribute.
-        
+
         If the assigned value is a numerical (scalar or array) or string object,
-        it is converted to an object of class SDS, whose attribute, 'nxdata', 
+        it is converted to an object of class SDS, whose attribute, 'nxdata',
         is set to the assigned value.
         """
         if isinstance(value, NXattr) or name.startswith('nx') or name.startswith('_'):
@@ -1136,14 +1168,14 @@ class NXgroup(NXnode):
     def nxsignals(self):
         """
         Return a dictionary of SDS's containing signal data.
-        
+
         The key is the value of the signal attribute.
         """
         signals = {}
         for node in self.nxentries.values():
             if 'signal' in node.nxattrs:
                 signals[node.signal.nxdata] = node
-        return signals                
+        return signals
 
     def nxsignal(self):
         """
@@ -1159,7 +1191,7 @@ class NXgroup(NXnode):
         """
         List of SDSs containing the axes.
         """
-        return [getattr(self, name) 
+        return [getattr(self, name)
                 for name in _parse_axes(self.nxsignal().axes.nxdata)]
 
     def nxerrors(self):
@@ -1174,11 +1206,11 @@ class NXgroup(NXnode):
     def nxplot(self, signal=None, **opts):
         """
         Plot data contained within the group.
-        
+
         Raises NeXusError if the data could not be plotted.
         """
         group = self
-        
+
         # Find a plottable signal
         if signal is None:
             signal = group.nxsignal()
@@ -1187,7 +1219,7 @@ class NXgroup(NXnode):
 
         # Find errors
         errors= group.nxerrors()
-        
+
         # Find the associated axes
         axes = group.nxaxes()
 
@@ -1206,14 +1238,14 @@ class NXgroup(NXnode):
 class NXlink(NXnode):
     """
     NeXus linked node.
-    
+
     The real node will be accessible by following the nxlink attribute.
     """
     def __init__(self,name,nxclass="",attrs={},group=None):
         self.nxclass = nxclass
         self.nxname = name
         self.nxlink = None  # This will be filled at the end of read
-        self.nxgroup = None 
+        self.nxgroup = None
         # Convert NeXus attributes to python attributes
         self._setattrs(attrs)
         self._link_target = attrs['target'].nxdata
@@ -1331,7 +1363,7 @@ def demo(argv):
             node = getattr(node,entry)
         node.nxplot()
         node._plotter.show()
-            
+
     else:
         usage = """
 usage: %s cmd [args]
@@ -1344,4 +1376,3 @@ usage: %s cmd [args]
 if __name__ == "__main__":
     import sys
     demo(sys.argv)
-

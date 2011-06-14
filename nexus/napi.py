@@ -1,4 +1,4 @@
-# This program is public domain 
+# This program is public domain
 # Author: Paul Kienzle
 
 """
@@ -458,7 +458,7 @@ class NeXus(object):
         # Remove relative path indicators from target
         L = []
         for t in target:
-            if t == '.': 
+            if t == '.':
                 # Skip current node
                 pass
             elif t == '..':
@@ -497,7 +497,7 @@ class NeXus(object):
             elif self._path[i] != name:
                 #print "target and current differ at",name
                 up = self._path[i:]
-		down = target[i:]
+                down = target[i:]
                 break
         else:
             #print "target shorter than current"
@@ -518,7 +518,7 @@ class NeXus(object):
             up.pop()
         for target in up:
             self.closegroup()
-        
+
         # Open groups on the way down
         for target in down:
             (name, nxclass) = target
@@ -641,8 +641,8 @@ class NeXus(object):
 
         Note that HDF4 files can have entries in the file with classes
         that don't need to be processed.  If the file follows the standard
-        NeXus DTDs then skip any entry for which nxclass.startswith('NX') 
-        is False.  For non-conforming files, skip those entries with 
+        NeXus DTDs then skip any entry for which nxclass.startswith('NX')
+        is False.  For non-conforming files, skip those entries with
         nxclass in nxs.H4SKIP.
         """
         name = ctypes.create_string_buffer(MAXNAMELEN)
@@ -906,7 +906,7 @@ class NeXus(object):
         """
         Return the data.  If data is a string (1-D char array), a python
         string is returned.  If data is a scalar (1-D numeric array of
-        length 1), a python scalar is returned.  If data is a string 
+        length 1), a python scalar is returned.  If data is a string
         array, a numpy array of type 'S#' where # is the maximum string
         length is returned.  If data is a numeric array, a numpy array
         is returned.
@@ -1365,7 +1365,7 @@ class NeXus(object):
             datafn = lambda: data.value
         else:
             # scalar, array or string list - use numpy array
-            if dtype=='char': 
+            if dtype=='char':
                 data = numpy.zeros(shape[:-1], dtype='S%i'%shape[-1])
             else:
                 data = numpy.zeros(shape, dtype)
@@ -1381,10 +1381,10 @@ class NeXus(object):
         """
         Convert an input array to a C pointer to a dense array.
 
-        Returns data, pdata where 
+        Returns data, pdata where
         - data is a possibly new copy of the array
-        - pdata is a pointer to the beginning of the array.  
-        Note that you must hold a reference to data for as long 
+        - pdata is a pointer to the beginning of the array.
+        Note that you must hold a reference to data for as long
         as you need pdata to keep the memory from being released to the heap.
         """
         if dtype == "char":
@@ -1409,7 +1409,7 @@ class NeXus(object):
 
         data = numpy.ascontiguousarray(data)
         pdata = data.ctypes.data
-            
+
         return data,pdata
 
     def show(self, path=None, indent=0):

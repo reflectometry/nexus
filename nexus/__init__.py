@@ -52,5 +52,6 @@ interface (NAPI_).
 .. _HDF:   http://www.hdfgroup.org
 """
 
-from nexus.napi import *
-from nexus.tree import *
+from .napi import *
+from .tree import *
+from .iso8601 import parse_date, seconds_since_epoch
