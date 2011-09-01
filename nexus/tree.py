@@ -122,15 +122,14 @@ from copy import copy, deepcopy
 import re
 
 import numpy
-import nexus.napi
-import nexus.unit
-from nexus.napi import NeXusError
+from . import napi, unit
+from .napi import NeXusError
 
 
 # Maximum memory in MB
 NX_MAX_MEMORY = 500
 
-class NeXusTree(nexus.napi.NeXus):
+class NeXusTree(napi.NeXus):
     """
     Structure-based interface to the NeXus file API.
 
@@ -144,7 +143,6 @@ class NeXusTree(nexus.napi.NeXus):
         - write a NeXus tree to the file.
       data = file.readpath(path)
         - read data from a particular path
-
 
     Example::
 
@@ -254,7 +252,7 @@ class NeXusTree(nexus.napi.NeXus):
 
     def _readchildren(self,n):
         children = {}
-        for i in range(n):
+        for _ in range(n):
             name,nxclass = self.getnextentry()
             #print "name,class,path",name,nxclass,self.path
             if nxclass in self._skipgroups:
@@ -360,7 +358,8 @@ class NeXusTree(nexus.napi.NeXus):
         self.opendata(data.nxname)
         self._writeattrs(data.nxattrs)
         value = data.nxdata
-        if value is not None: self.putdata(value)
+        if value is not None:
+            self.putdata(data.nxdata)
         self.closedata()
         return []
 
@@ -433,8 +432,9 @@ def _datasize(nxtype,dims):
 
 def _convert_type(value, nxtype=None):
     # Convert string-like inputs to strings
+
     try:
-        value[0]+''
+        if value != '': value[0]+''
         if nxtype in (None, '', 'char'):
             value = str(value)
             return 'char',[len(value)],value
@@ -572,7 +572,8 @@ class NXnode(object):
         """
         # Print node
         result = [self._str_name(indent=indent)]
-        if attrs: result.append(self._str_attrs(indent=indent+2))
+        if attrs: 
+            result.append(self._str_attrs(indent=indent+2))
         result.append(self._str_value(indent=indent+2))
         # Print children
         entries = self.nxentries
@@ -727,23 +728,28 @@ class SDS(NXnode):
                     value = slab.nxget([i,j,0],size)
 
     """
-    def __init__(self,name,dtype='',shape=None,file=None,path=None,
-                 attrs=None,value=None,group=None):
+    def __init__(self, name=None, dtype='', shape=(), attrs={},
+                 file=None, path=None, nxgroup=None,
+                 value=None, units=None):
         #print "creating data node for",path
         self._file = file
         self._path = path
-        self._value = value
+        self._value = None
         self._dirty = False
-        self.nxclass = "SDS" # Scientific Data Set
+        self.nxclass = "SDS" # Sciefntific Data Set
         self.nxname = name
         self.nxtype = str(dtype)
         self.nxdims = shape
-        self.nxgroup = group
+        self.nxgroup = nxgroup
         # Convert NeXus attributes to python attributes
         self._setattrs(attrs)
-        units = getattr(self, 'units', None)
-        self._converter = nexus.unit.Converter(self.nxunits)
+        # If units appears as a keyword, it overrides any units given in attrs.
+        if units is not None:
+            self.nxunits = units
+        self._converter = unit.Converter(self.nxunits)
         self._incontext = False
+        if value is not None:
+            self.nxdata = value
 
     def __enter__(self):
         """
@@ -781,7 +787,7 @@ class SDS(NXnode):
         before returning them.
 
         This operation should be performed in a "with group.data"
-        conext.
+        context.
 
         Raises ValueError cannot convert units.
 
@@ -791,7 +797,8 @@ class SDS(NXnode):
             raise IOError("Data is not attached to a file")
         if self._dirty or self._value:
             raise IOError("Cannot mix nxget and nxdata_as/nxdata_from")
-        value = self._file.getslab(offset,size)
+        with self:
+            value = self._file.getslab(offset,size)
         return self._converter(value,units)
 
     def nxput(self, data, offset, units=None):
@@ -802,7 +809,7 @@ class SDS(NXnode):
         Offset and shape must each have one entry per dimension.
 
         This operation should be performed in a "with group.data"
-        conext.
+        context.
 
         Raises ValueError if this fails.  No error is raised when
         writing to a file which is open read-only.
@@ -822,8 +829,9 @@ class SDS(NXnode):
             data = data.nxdata_as(self.nxunits)
         elif units:
             # When storing a block of data, convert to the units of the SDS
-            data = nexus.unit.Converter(units)(data, self.nxunits)
-        self._file.putslab(numpy.asarray(data,self.nxtype), offset, data.shape)
+            data = unit.Converter(units)(data, self.nxunits)
+        with self:
+            self._file.putslab(numpy.asarray(data,self.nxtype), offset, data.shape)
         self._value = None # Clear the cached value, if any; it is no longer valid
 
     def nxadd(self, data, offset, units=""):
@@ -839,7 +847,7 @@ class SDS(NXnode):
             data = data.nxdata_as(self.nxunits)
         elif units:
             # When adding to an SDS, first convert to the SDS units
-            data = nexus.unit.Converter(units)(data, self.nxunits)
+            data = unit.Converter(units)(data, self.nxunits)
 
         current_value = self.nxget(offset, data.shape)
         self.nxput(current_value + data, offset)
@@ -877,8 +885,7 @@ class SDS(NXnode):
 
         Only works if the SDS has the 'axes' attribute
         """
-        return [getattr(self.nxgroup, name)
-                for name in _parse_axes(self.axes.nxdata)]
+        return [getattr(self.nxgroup, name) for name in _parse_axes(self.axes.nxdata)]
 
     def nxdata_as(self, units=""):
         """
@@ -918,7 +925,7 @@ class SDS(NXnode):
 
         # Unit conversion
         if units != "":
-            value = nexus.unit.Converter(units)(value, self.nxunits)
+            value = unit.Converter(units)(value, self.nxunits)
         # Type conversion
         nxtype, nxdims, value = _convert_type(value, self.nxtype)
         # Assignment

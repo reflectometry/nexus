@@ -153,7 +153,7 @@ class Converter(object):
     scalebase = 1
     dims = _build_all_units()
 
-    def __init__(self,name):
+    def __init__(self, name):
         self.base = name
         for map in self.dims:
             if name in map:
