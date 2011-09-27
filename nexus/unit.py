@@ -134,13 +134,15 @@ def _build_all_units():
     Q = { 'invAng': 1, 'invAngstroms': 1,
           '10^-3 Angstrom^-1': 1e-3, 'nm^-1': 10 }
 
+    energy = _build_metric_units('electronvolt','eV')
+
     # APS files may be using 'a.u.' for 'arbitrary units'.  Other
     # facilities are leaving the units blank, using ??? or not even
     # writing the units attributes.
     unknown = {None:1, '???':1, '': 1, 'a.u.':1}
 
     dims = [unknown, distance, time, angle, frequency,
-            temperature, charge, sld, Q]
+            temperature, charge, sld, Q, energy]
     return dims
 
 class Converter(object):
