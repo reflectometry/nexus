@@ -458,7 +458,7 @@ def _convert_type(value, nxtype=None):
     else:
         #print "converting",getattr(value,'dtype',type(value)),"to",nxtype
         value = numpy.asarray(value, nxtype)
-    if numpy.isscalar(value):
+    if len(value.shape) == 0:
         value = value.reshape((1,))
     return str(value.dtype),value.shape,value
 
