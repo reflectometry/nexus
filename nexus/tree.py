@@ -197,6 +197,14 @@ class NeXusTree(napi.NeXus):
         self._writelinks(links)
         self.close()
 
+    def writenode(self, node, path=""):
+        """
+        Write a node to a nexus file.
+        """
+        self.open()
+        self._writelinks(self._writegroup(entry, path=path))
+        self.close()
+
     def readpath(self, path):
         """
         Read the data on a particular file path.
@@ -572,7 +580,7 @@ class NXnode(object):
         """
         # Print node
         result = [self._str_name(indent=indent)]
-        if attrs: 
+        if attrs:
             result.append(self._str_attrs(indent=indent+2))
         result.append(self._str_value(indent=indent+2))
         # Print children
