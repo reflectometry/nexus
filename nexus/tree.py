@@ -116,19 +116,23 @@ own version that defines, e.g., a NXmonitor() method to return an
 NXmonitor object when an NXmonitor class is read.  Your NXmonitor
 class should probably be a subclass of NXgroup.
 """
-__all__ = ['load', 'save', 'tree', 'NeXusTree']
+__all__ = ['load', 'save', 'tree', 'NeXusTree', 'NXroot']
 
 from copy import copy, deepcopy
 import re
+import time
 
 import numpy
 from . import napi, unit
 from .napi import NeXusError
+from .iso8601 import format_date
 
 
 # Maximum memory in MB
 NX_MAX_MEMORY = 500
 
+# TODO: remove direct inheritance so napi ops and tree ops are distinct
+# In particular, entries() is a napi op and nxentries is a tree attribute
 class NeXusTree(napi.NeXus):
     """
     Structure-based interface to the NeXus file API.
@@ -178,6 +182,7 @@ class NeXusTree(napi.NeXus):
 
         # Resolve links
         self._readlinks(root)
+        root.file = self
         return root
 
     def writefile(self, tree):
@@ -188,21 +193,15 @@ class NeXusTree(napi.NeXus):
         Updating individual nodes can be done using the napi interface, with
         nx.handle as the nexus file handle.
         """
+        tree.file = self
         self.open()
+        self.openpath("/")
         links = []
-        # Root node is special --- only write its children.
-        # TODO: maybe want to write root node attributes?
+        # Root node is special; only write its children.  Attributes are
+        # written by open (HDF5_version, file_name, file_time, NeXus_version)
         for entry in tree.nxentries.values():
             links += self._writegroup(entry, path="")
         self._writelinks(links)
-        self.close()
-
-    def writenode(self, node, path=""):
-        """
-        Write a node to a nexus file.
-        """
-        self.open()
-        self._writelinks(self._writegroup(entry, path=path))
         self.close()
 
     def readpath(self, path):
@@ -250,7 +249,7 @@ class NeXusTree(napi.NeXus):
             else:
                 value = None
             data = self.SDS(value=value,name=name,dtype=type,shape=dims,attrs=attrs,
-                            file=self,path=self.path)
+                            file=self,path=self.path,dirty=False)
         self.closedata()
         return data
 
@@ -352,22 +351,34 @@ class NeXusTree(napi.NeXus):
         if hasattr(data,'_link_target'):
             return [(path, data._link_target)]
 
+        # Make the first dimension of all numeric datasets unlimited
+        # As a result, they will need to be written using putslab
+        if data.nxtype != 'char':
+            data_dims = numpy.array(data.nxdims)
+            data_dims[0] = napi.UNLIMITED
+        else:
+            data_dims = data.nxdims
+            
+        
         # Finally some data.  Compress it if it is large.
         #print "creating data",data.nxname,data.nxdims,data.nxtype
         if numpy.prod(data.nxdims) > 10000:
             # Compress the fastest moving dimension of large datasets
             slab_dims = numpy.ones(len(data.nxdims),'i')
             slab_dims[-1] = data.nxdims[-1]
-            self.compmakedata(data.nxname, data.nxtype, data.nxdims,
+            self.compmakedata(data.nxname, data.nxtype, data_dims,
                               'lzw', slab_dims)
         else:
             # Don't use compression for small datasets
-            self.makedata(data.nxname, data.nxtype, data.nxdims)
+            self.makedata(data.nxname, data.nxtype, data_dims)
         self.opendata(data.nxname)
         self._writeattrs(data.nxattrs)
         value = data.nxdata
         if value is not None:
-            self.putdata(data.nxdata)
+            if data.nxtype == 'char':
+                self.putdata(data.nxdata)
+            else:
+                self.putslab(value,0*data_dims,data.nxdata.shape)
         self.closedata()
         return []
 
@@ -617,6 +628,14 @@ class NXnode(object):
         """
         print self._str_tree(attrs=attrs,recursive=True)
 
+    def nxroot(self):
+        """
+        Find the root node of a tree
+        """
+        while not isinstance(self, NXroot):
+            self = self.nxgroup
+        return self
+    
 class SDS(NXnode):
     """
     A NeXus data node (Scientific Data Set).
@@ -738,12 +757,12 @@ class SDS(NXnode):
     """
     def __init__(self, name=None, dtype='', shape=(), attrs={},
                  file=None, path=None, nxgroup=None,
-                 value=None, units=None):
+                 value=None, units=None, dirty=True):
         #print "creating data node for",path
         self._file = file
-        self._path = path
         self._value = None
         self._dirty = False
+        self.nxpath = path
         self.nxclass = "SDS" # Sciefntific Data Set
         self.nxname = name
         self.nxtype = str(dtype)
@@ -758,6 +777,7 @@ class SDS(NXnode):
         self._incontext = False
         if value is not None:
             self.nxdata = value
+        self._dirty = dirty
 
     def __enter__(self):
         """
@@ -772,7 +792,7 @@ class SDS(NXnode):
         # TODO: if HDF allows multiple cursors, extend napi to support them
         self._close_on_exit = not self._file.isopen
         self._file.open() # Force file open even if closed
-        self._file.openpath(self._path)
+        self._file.openpath(self.nxpath)
         self._incontext = True
         return self
 
@@ -783,6 +803,9 @@ class SDS(NXnode):
         self._incontext = False
         if self._close_on_exit:
             self._file.close()
+
+    def __array__(self):
+        return self.nxdata
 
     def nxget(self, offset, size, units=None):
         """
@@ -903,7 +926,7 @@ class SDS(NXnode):
             if not self._file: return None
             if _datasize(self.nxtype, self.nxdims) > NX_MAX_MEMORY:
                 raise ValueError("Data larger than NX_MAX_MEMORY")
-            self._value = self._file.readpath(self._path)
+            self._value = self._file.readpath(self.nxpath)
 
         #print "retrieving",self.nxname,"as",getattr(self._value,'dtype',type(self._value))
         if units:
@@ -1139,6 +1162,30 @@ class NXgroup(NXnode):
     def _str_value(self,indent=0):
         return ""
 
+    def write(self, file, path, node):
+        """
+        Add a node to an existing group and save it to the file.
+        """
+        file.open()
+        file.openpath(path)
+        if path == "/": path = ""
+        if isinstance(node, NXgroup):
+            links = file._writegroup(node, path=path)
+            file._writelinks(links)
+        else:
+            file._writedata(node, path=path)
+        
+        # Load the entry and attach it to the curren node        
+        path = "/".join((path, node.nxname))
+        file.openpath(path)
+        stored_node = file._readgroup()
+        stored_node.nxgroup = self
+        setattr(self, node.nxname, stored_node)
+
+        # Return the newly created node
+        return stored_node
+
+
     def __getattr__(self, key):
         """
         Provide direct access to nodes via nxclass name.
@@ -1196,10 +1243,18 @@ class NXgroup(NXnode):
         """
         SDS containing the signal data.
         """
+        #print "entries",self.nxentries
         for node in self.nxentries.values():
-            if 'signal' in node.nxattrs and str(node.signal.nxdata) == '1':
-                if 1 in node.nxdims: self._fixaxes(node)
-                return self.__dict__[node.nxname]
+            if 'signal' in node.nxattrs:
+                #print node.signal.nxdata, type(node.signal.nxdata)
+                value = node.signal.nxdata
+                try:
+                    value = value[0]
+                except IndexError:
+                    value = int(value)
+                if value:
+                   if 1 in node.nxdims: self._fixaxes(node)
+                   return self.__dict__[node.nxname]
         return None
 
     def nxaxes(self):
@@ -1249,6 +1304,11 @@ class NXgroup(NXnode):
 
         # Plot with the available plotter
         self._plotter.plot(signal, axes, title, errors, **opts)
+
+class NXroot(NXgroup):
+    def __init__(self, entries = [], file=None):
+        self.entries = entries
+        self.file = file
 
 class NXlink(NXnode):
     """

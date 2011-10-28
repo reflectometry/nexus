@@ -54,4 +54,4 @@ interface (NAPI_).
 
 from .napi import *
 from .tree import *
-from .iso8601 import parse_date, seconds_since_epoch
+from .iso8601 import parse_date, format_date, seconds_since_epoch

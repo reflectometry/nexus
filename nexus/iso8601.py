@@ -21,6 +21,9 @@
 
 # 2011-06-14 pkienzle
 # * added seconds_since_epoch
+# 2011-10-27 pkienzle
+# * added format_date
+# * changed ParseError to TypeError/ValueError depending on use.
 
 """
 ISO 8601 date time string parsing
@@ -37,7 +40,7 @@ from time import mktime
 from datetime import datetime, timedelta, tzinfo
 import re
 
-__all__ = ["parse_date", "ParseError"]
+__all__ = ["parse_date", "format_date", "DateError"]
 
 # Adapted from http://delete.me.uk/2005/03/iso8601.html
 ISO8601_REGEX = re.compile(r"(?P<year>[0-9]{4})(-(?P<month>[0-9]{1,2})(-(?P<day>[0-9]{1,2})"
@@ -46,8 +49,18 @@ ISO8601_REGEX = re.compile(r"(?P<year>[0-9]{4})(-(?P<month>[0-9]{1,2})(-(?P<day>
 )
 TIMEZONE_REGEX = re.compile("(?P<prefix>[+-])(?P<hours>[0-9]{2}).(?P<minutes>[0-9]{2})")
 
-class ParseError(Exception):
-    """Raised when there is a problem parsing a date string"""
+def format_date(t):
+    """
+    Construct a utc offset timestamp containing the local time.
+    """
+    if isinstance(t, datetime.datetime):
+        t = t.timetuple()
+    dt = (time.timezone,time.altzone)[t.tm_isdst]
+    local = time.strftime('%Y-%m-%dT%H:%M:%S',t)
+    sign = "+" if dt >= 0 else "-"
+    offset = "%02d:%02d"%(abs(dt)//3600,(abs(dt)%3600)//60)
+    return local+sign+offset
+
 
 # Yoinked from python docs
 ZERO = timedelta(0)
@@ -112,12 +125,15 @@ def parse_date(datestring, default_timezone=UTC):
     have dates without a timezone (not strictly correct). In this case the
     default timezone specified in default_timezone is used. This is UTC by
     default.
+    
+    Raises TypeError if n
     """
-    if not isinstance(datestring, basestring):
-        raise ParseError("Expecting a string %r" % datestring)
-    m = ISO8601_REGEX.match(datestring)
+    try:
+        m = ISO8601_REGEX.match(datestring)
+    except TypeError:
+        raise TypeError("parse_date expects a string")
     if not m:
-        raise ParseError("Unable to parse date string %r" % datestring)
+        raise ValueError("Unable to parse date string %r" % datestring)
     groups = m.groupdict()
     tz = parse_timezone(groups["timezone"], default_timezone=default_timezone)
     if groups["fraction"] is None:
