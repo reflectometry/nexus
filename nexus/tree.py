@@ -401,7 +401,12 @@ class NeXusTree(napi.NeXus):
             links += [(path, group._link_target)]
         for child in group.nxentries.values():
             if child.nxclass == 'SDS':
-                links += self._writedata(child,path)
+                try:
+                    #print "writing",child.nxname,"to",path
+                    links += self._writedata(child,path)
+                except:
+                    #print "Unable to write",child.nxdata,"to",path+"/"+child.nxname
+                    raise
             elif hasattr(child,'_link_target'):
                 links += [(path+"/"+child.nxname,child._link_target)]
             else:
@@ -450,10 +455,17 @@ def _datasize(nxtype,dims):
     return _nxtype_size[nxtype]*numpy.prod(dims)/(1024**2)
 
 def _convert_type(value, nxtype=None):
+    """
+    Convert value to the specified nxtype.
+
+    If nxtype is not given, guess type from the value.
+
+    Returns type, dimensions, converted value
+    """
     # Convert string-like inputs to strings
 
     try:
-        if value != '': value[0]+''
+        value[:0]+'' # raise an error if value is not string-like
         if nxtype in (None, '', 'char'):
             value = str(value)
             return 'char',[len(value)],value
@@ -462,13 +474,13 @@ def _convert_type(value, nxtype=None):
             raise TypeError("Expected a string")
 
     # Convert numeric inputs to numpy arrays
-    if nxtype == '':
+    if nxtype in (None, ''):
         value = numpy.asarray(value)
         if str(value.dtype) not in _nxtype_size:
             raise TypeError("Expected a string or array")
     else:
         #print "converting",getattr(value,'dtype',type(value)),"to",nxtype
-        value = numpy.asarray(value, nxtype)
+        value = numpy.asarray(value, str(nxtype))
     if len(value.shape) == 0:
         value = value.reshape((1,))
     return str(value.dtype),value.shape,value
@@ -759,6 +771,10 @@ class SDS(NXnode):
                  file=None, path=None, nxgroup=None,
                  value=None, units=None, dirty=True):
         #print "creating data node for",path
+        if value is not None:
+            dtype,value_shape,value = _convert_type(value, nxtype=dtype)
+        if dtype is None:
+            raise TypeError("SDS needs a type")
         self._file = file
         self._value = None
         self._dirty = False
@@ -901,7 +917,10 @@ class SDS(NXnode):
         return v
 
     def _str_tree(self,indent=0,attrs=False,recursive=False):
-        dims = 'x'.join([str(n) for n in self.nxdims])
+        if self.nxdims is None:
+            dims = '<NONE>'
+        else:
+            dims = 'x'.join([str(n) for n in self.nxdims])
         #return "%s(%s)"%(self.nxtype, dims)
         s = str(self)
         if '\n' in s or s == "":
@@ -1194,7 +1213,7 @@ class NXgroup(NXnode):
             return self.nxcomponent(key)
         raise KeyError(key+" not in "+self.nxclass+":"+self.nxname)
 
-    def NOT__setattr__(self, name, value):
+    def _NOT__setattr__(self, name, value):
         """
         Set a node attribute as a node or regular Python attribute.
 

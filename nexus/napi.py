@@ -896,8 +896,11 @@ class NeXus(object):
         status = nxlib.nximakedata_(self.handle,name,storage,len(shape),
                                   shape.ctypes.data_as(c_int_p))
         if status == ERROR:
-            raise NeXusError(_LAST_NEXUS_ERROR[0])
-            raise ValueError, "Could not create data %s: %s"%(name,self._loc())
+            #raise NeXusError(_LAST_NEXUS_ERROR[0])
+            raise ValueError("Could not create data %s as %s[%s]: %s"
+                             %(name,str(dtype),
+                               ",".join("%s"%i for i in shape),
+                               self._loc()))
 
     nxlib.nxicompmakedata_.restype = c_int
     nxlib.nxicompmakedata_.argtypes  = [c_void_p, c_char_p, c_int, c_int, c_int_p,
